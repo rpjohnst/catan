@@ -12,20 +12,30 @@ For tile (*), neighbor indices 0-5 will correspond to the tiles positioned like 
 \_/4\_/           4  (x  ), (y-1)
   \_/             5  (x-1), (y  )
   
-  Edge indices work the same way.  
   Vertex indices work as follows: The left-most vertex is vertex 0. Increment by 1 for each turn clockwise.
+  Edges are stored as a 
 */
 class Tile
 {
-    next_to_road(dir, player)
+    next_to_road(edge, player)
     {
-      var vertex = this.vertices[dir];
+      var vertex = this.vertices[edge];
+      
+      // A road is valid if this edge is immediately adjacent to an existing road
       var t1 = vertex.neighbors[0] && vertex.neighbors[0].state == player.id;
       var t2 = vertex.neighbors[1] && vertex.neighbors[1].state == player.id;
       var t3 = vertex.neighbors[2] && vertex.neighbors[2].state == player.id;
-      return (t1 || t2 || t3);
+      
+      // It is also valid if there is a road by the vertex on the other end of this edge
+      var neighbor = vertex.neighbors[Tile.road_dir(edge)].vertex;      
+      var t4 = neighbor.neighbors[0] && neighbor.neighbors[0].state == player.id;
+      var t5 = neighbor.neighbors[1] && neighbor.neighbors[1].state == player.id;
+      var t6 = neighbor.neighbors[2] && neighbor.neighbors[2].state == player.id;
+      
+      return (t1 || t2 || t3 || t4 || t5 || t6);
     }
     
+    /* Returns true if the edge associated with  */
     next_to_settlement(dir, player)
     {
       var vertex = this.vertices[dir];
@@ -262,29 +272,39 @@ class Tile
     
     // For even vertices:  0 = W; 1 = NE; 2 = SE
     // For odd vertices:   0 = E; 1 = SW; 2 = NW
+    /* Completes the graph by connecting neighboring vertices via the 'neighbors' property */
     connect_vertices()
     {
+      // TODO: Clean this up a little? Put it in a loop
+      // Neighbor (i*2)%3 comes from a different tile: it should reference this.neighbors[i].vertices[(i+5)%6]
+      //Remaining two neighbors are (i+1)%6 and  (i+5)%6, in that order except for 2 and 5
+      // 0: 1,5
+      // 1: 2,0
+      // 2: 1,3 (swapped?)
+      // 3: 4,2 
+      // 4: 5,3
+      // 5: 4,0 (swapped?)
+      
       this.vertices[0].neighbors[0] = this.neighbors[0]? {"vertex": this.neighbors[0].vertices[5], "state": Catan.NONE}: null;
       this.vertices[0].neighbors[1] =                    {"vertex": this.vertices[1], "state": Catan.NONE};
       this.vertices[0].neighbors[2] =                    {"vertex": this.vertices[5], "state": Catan.NONE};
-      
-      this.vertices[2].neighbors[0] =                    {"vertex": this.vertices[1], "state": Catan.NONE};
-      this.vertices[2].neighbors[1] = this.neighbors[2]? {"vertex": this.neighbors[2].vertices[1], "state": Catan.NONE}: null;
-      this.vertices[2].neighbors[2] =                    {"vertex": this.vertices[3], "state": Catan.NONE};
-      
-      this.vertices[4].neighbors[0] =                    {"vertex": this.vertices[5], "state": Catan.NONE};
-      this.vertices[4].neighbors[1] =                    {"vertex": this.vertices[3], "state": Catan.NONE};
-      this.vertices[4].neighbors[2] = this.neighbors[4]? {"vertex": this.neighbors[4].vertices[2], "state": Catan.NONE}: null;
-      
       
       this.vertices[1].neighbors[0] =                    {"vertex": this.vertices[2], "state": Catan.NONE};
       this.vertices[1].neighbors[1] =                    {"vertex": this.vertices[0], "state": Catan.NONE};
       this.vertices[1].neighbors[2] = this.neighbors[1]? {"vertex": this.neighbors[1].vertices[0], "state": Catan.NONE}: null;
       
+      this.vertices[2].neighbors[0] =                    {"vertex": this.vertices[1], "state": Catan.NONE};
+      this.vertices[2].neighbors[1] = this.neighbors[2]? {"vertex": this.neighbors[2].vertices[1], "state": Catan.NONE}: null;
+      this.vertices[2].neighbors[2] =                    {"vertex": this.vertices[3], "state": Catan.NONE};
+      
       this.vertices[3].neighbors[0] = this.neighbors[3]? {"vertex": this.neighbors[3].vertices[2], "state": Catan.NONE}: null;
       this.vertices[3].neighbors[1] =                    {"vertex": this.vertices[4], "state": Catan.NONE};
       this.vertices[3].neighbors[2] =                    {"vertex": this.vertices[2], "state": Catan.NONE};
       
+      this.vertices[4].neighbors[0] =                    {"vertex": this.vertices[5], "state": Catan.NONE};
+      this.vertices[4].neighbors[1] =                    {"vertex": this.vertices[3], "state": Catan.NONE};
+      this.vertices[4].neighbors[2] = this.neighbors[4]? {"vertex": this.neighbors[4].vertices[3], "state": Catan.NONE}: null;
+
       this.vertices[5].neighbors[0] =                    {"vertex": this.vertices[4], "state": Catan.NONE};
       this.vertices[5].neighbors[1] = this.neighbors[5]? {"vertex": this.neighbors[5].vertices[4], "state": Catan.NONE}: null;
       this.vertices[5].neighbors[2] =                    {"vertex": this.vertices[0], "state": Catan.NONE};      
