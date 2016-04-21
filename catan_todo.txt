@@ -4,13 +4,9 @@ TODO:
 * Add interface and functions to handle setting up initial board state (validity functions are g2g)
 * Handle rolling 7s: Fill in stubs for discard and move_thief (+ steal function?)
 * Handle playing development cards (can reuse move_thief for soldier)
-* Handle a lobby system (not really necessary on this front-end version)
 
-[driver.js]
+[client/app.js]
 * Delete temporary functions used for the horrible placeholder interface
-
-[player.js]
-* Fix hard-coded width/height for town sprite
 
 [UI]
 * Replace placeholder UI with ability to click vertices/edges on the board
@@ -30,8 +26,8 @@ TODO:
 
 [...]
 * Functions to handle trading
+* Chat
 * Ports
 * Add sound effects
 * Compute longest road
 * Add function checking for win condition and add win/reset screen
-* Migrate to Node.js/Websockets for handling multiplayer

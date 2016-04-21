@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Catan</title>
+	</head>
+	<body>
+		<!-- TODO: proper event handling -->
+		<div>
+			<form name="coordinates">
+				<div>Coordinates: X: <input type="text" name="x"> Y: <input type="text" name="y"> Dir: <input type="text" name="d"></div>
+				<div>
+					<button name="buildTown">Build Town</button>
+					<button name="buildCity">Build City</button>
+					<button name="buildCard">Build Card</button>
+					<button name="endTurn">End Turn</button>
+				</div>
+			</form>
+
+			<div id="citymenu"></div>
+			<div id="resources"></div>
+		</div>
+
+		<script src="js/bundle.js"></script>
+	</body>
+</html>

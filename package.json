@@ -1,0 +1,15 @@
+{
+  "name": "catan",
+  "version": "0.0.1",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.13.4",
+    "ws": "^1.1.0"
+  },
+  "devDependencies": {
+    "browserify": "^13.0.0"
+  },
+  "scripts": {
+    "build": "browserify -d client/app.js -o public/js/bundle.js"
+  }
+}
