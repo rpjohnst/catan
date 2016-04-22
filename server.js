@@ -43,7 +43,7 @@ wss.on("connection", function (ws) {
 	let turn = 0;
 
 	//ORE, WOOD, WOOL, GRAIN, BRICK
-	console.log("WOOD: " + player_hand[0].getResourceCount(1));
+	//console.log("WOOD: " + player_hand[0].getResourceCount(1));
 
 	let close = new EventEmitter();
 	close.once("close", function (skip) {
@@ -115,16 +115,46 @@ wss.on("connection", function (ws) {
 				updateTurn();
 				var dice = rollDice();
 				console.log(dice);
-				players.forEach(function (ws, player) {
+				console.log(board.hit[dice])
+				
+				//need to iterate through every hex with value of the dice roll, and award adjacent towns/cities the appropriate number of resources
+        var target_tiles = board.hit[dice];
+        for(var i=0; i < target_tiles.length; i++){
+          
+          var target = target_tiles[i];                         // Use both
+          
+          var terrain = board.tiles[target[1]][target[0]];
+          
+          var n1 = target.slice(0); n1[0] += 1;             // Use 0
+          var n2 = target.slice(0); n2[0] -= 1;             // Use 1
+          var n3 = target.slice(0); n3[1] += 1; n3[0] -= 1; // Use 1
+          var n4 = target.slice(0); n4[1] -= 1; n4[0] += 1; // Use 0
+          
+          var neighbors = [n1,n2,n3,n4, target, target];
+          var sides = [0, 1, 1, 0, 0, 1];
+          
+          for(var j=0; j<neighbors.length; j++){
+            var n = neighbors[j];
+            if(!n) continue;
+            
+            var side = sides[j];
+            var building = board.buildings[n[1]][n[0]][side];
+            
+            if(building !== null){
+              player_hand[building].addResourceCard(terrain, 1);
+              console.log("Added " + terrain + " to " + building);
+            }
+          } // end inner loop (adds resources to player)
+        } // end loop
+        
+        players.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
 						message: "diceRoll",
 						value: dice
 					}));
 					informPlayer(ws, player);
 				});
-
-				//need to iterate through every hex with value of the dice roll, and award adjacent towns/cities the appropriate number of resources
-
+        
 				break;
 			}
 		}).on("close", function (code, message) {

@@ -116,6 +116,8 @@ class Player{
 
 	//Get the number of resources of a specific type that the player is holding. 
 	getResourceCount(cardValue){
+    console.log("getRC: getting " + cardValue);
+    console.log("getRC: returning " + this.resource_cards[cardValue]);
 		return this.resource_cards[cardValue];
 	}
 
@@ -130,10 +132,14 @@ class Player{
 		}
 	}
 
+  // Note: Javascript is not fond of method overloading
+  // The above function was being called instead with number == null
 	//Adds one of a specific resource (cardValue) to the player's hand. 
-	addResourceCard(cardValue){
-		this.resource_cards[cardValue] += 1;
-	}
+	//addResourceCard(cardValue){
+    //console.log("addResourceCard: adding " + cardValue);
+		//this.resource_cards[cardValue] += 1;
+    //console.log("addResourceCard: total is now " + this.resource_cards[cardValue]);
+	//}
 
 	//Adds <number> of a specific resource <cardValue> to the player's hand. 
 	addResourceCard(cardValue, number){
