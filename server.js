@@ -3,7 +3,8 @@
 let EventEmitter = require("events").EventEmitter,
 	Express = require("express"),
 	WebSocket = require("ws"),
-	Catan = require("./catan");
+	Catan = require("./catan"),
+	Player = require("./player");
 
 let app = Express();
 app.use(Express.static("public"));
@@ -32,8 +33,17 @@ wss.on("connection", function (ws) {
 	let players = lobby;
 	lobby = [];
 
+	let player_hand = new Array();
+
+	players.forEach(function (ws, player) {
+		player_hand[player] = new Player();
+	});
+
 	let board = new Catan();
 	let turn = 0;
+
+	//ORE, WOOD, WOOL, GRAIN, BRICK
+	console.log("WOOD: " + player_hand[0].getResourceCount(1));
 
 	let close = new EventEmitter();
 	close.once("close", function (skip) {
@@ -56,18 +66,23 @@ wss.on("connection", function (ws) {
 			console.log("received from player %d: %s", player, messageJson);
 
 			if (player != turn) {
-				ws.send(JSON.stringify({ message: "error", error: "turn" }));
+				sendError(ws, "turn");
+				// ws.send(JSON.stringify({ message: "error", error: "turn" }));
 				return;
 			}
 
 			let message = JSON.parse(messageJson);
 			switch (message.message) {
 			default:
-				ws.send(JSON.stringify({ message: "error", error: "message" }));
+				sendError(ws, "message");
+				// ws.send(JSON.stringify({ message: "error", error: "message" }));
 				break;
 
 			case "buildTown":
-				if (board.addTown(message.x, message.y, message.d, player)) {
+				if (board.addTown(message.x, message.y, message.d, player) && player_hand[player].remainingTowns() != 0) {
+					console.log("Building Town");
+					player_hand[turn].useTown();
+					console.log("Player " + turn + " remaining towns: " +player_hand[turn].remainingTowns());
 					players.forEach(function (ws, player) {
 						ws.send(JSON.stringify({
 							message: "buildTown",
@@ -76,15 +91,26 @@ wss.on("connection", function (ws) {
 						}));
 					});
 				} else {
-					ws.send(JSON.stringify({ message: "error", error: "buildTown" }));
+					sendError(ws, "buildTown");
+					//ws.send(JSON.stringify({ message: "error", error: "buildTown" }));
 				}
 				break;
+			case "buildRoad":
+				if(board.addRoad(message.x, message.y, message.d, player)){
+					players.forEach(function(ws, player) {
+						ws.send(JSON.stringify({
+							message: "buildRoad",
+							x: message.x, y: message.y, d: message.d,
+							player: turn
+						}));
+					});
+				}else {
+					sendError(ws, "buildRoad");
+				}
 
+				break;
 			case "turn":
-				turn = (turn + 1) % players.length;
-				players.forEach(function (ws, player) {
-					ws.send(JSON.stringify({ message: "turn", player: turn }));
-				});
+				updateTurn(ws, player);
 				break;
 			}
 		}).on("close", function (code, message) {
@@ -92,4 +118,19 @@ wss.on("connection", function (ws) {
 			close.emit("close", player);
 		});
 	});
+	function updateTurn(ws, player){
+		turn = (turn + 1) % players.length;
+		players.forEach(function (ws, player){
+			ws.send(JSON.stringify({message: "turn", player: turn}));
+		});
+	};
+
+	function sendError(ws, errorMessage){
+		ws.send(JSON.stringify({message: "error", error: errorMessage}));
+	};
+
+	function rollDice(){
+		return Math.floor(Math.random()* (12 - 2)) + 2;
+	}
 });
+
