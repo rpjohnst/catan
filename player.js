@@ -69,6 +69,14 @@ class Player{
 		this.development_cards[cardValue] += 1;
 	}
 
+	getDevelopList(){
+		return this.development_cards;
+	}
+
+	getKnightCount(){
+		return this.knights;
+	}
+
 	/*
 	RESOURCE CARDS
 	*/
@@ -80,6 +88,30 @@ class Player{
 			total += this.resource_cards[i];
 		}
 		return total;
+	}
+
+	getResourceList(){
+		return this.resource_cards;
+	}
+
+	woodCount(){
+		return this.getResourceCount(WOOD);
+	}
+
+	oreCount(){
+		return this.getResourceCount(ORE);
+	}
+
+	grainCount(){
+		return this.getResourceCount(GRAIN);
+	}
+
+	woolCount(){
+		return this.getResourceCount(WOOL);
+	}
+
+	brickCount(){
+		return this.getResourceCount(BRICK);
 	}
 
 	//Get the number of resources of a specific type that the player is holding. 
@@ -125,6 +157,10 @@ class Player{
 	//Returns the number of towns a player has remaining. 
 	remainingTowns(){
 		return this.available_pieces[TOWN]
+	}
+
+	getStructureList(){
+		return this.available_pieces;
 	}
 
 	//Decreases the number of player cities by one and consumes the resources required.

@@ -120,6 +120,7 @@ wss.on("connection", function (ws) {
 						message: "diceRoll",
 						value: dice
 					}));
+					informPlayer(ws, player);
 				});
 
 				//need to iterate through every hex with value of the dice roll, and award adjacent towns/cities the appropriate number of resources
@@ -145,6 +146,34 @@ wss.on("connection", function (ws) {
 	//Method for rolling the dice.
 	function rollDice(){
 		return Math.floor(Math.random()* (12 - 2)) + 2;
-	}
+	};
+
+	//Sends all the information that may need to be displayed to the player.
+	function informPlayer(ws, _player){
+		var player = player_hand[_player];
+
+		ws.send(JSON.stringify({message: "info",
+								victoryPoints: player.getVictoryPoints(),
+								wood: player.woodCount(),
+								brick: player.brickCount(),
+								ore: player.oreCount(),
+								wool: player.woolCount(),
+								grain: player.grainCount(),
+								cities: player.remainingCities(),
+								towns: player.remainingTowns(),
+								roads: player.remainingRoads(),
+								develop: player.getDevelopList(),
+								knights: player.getKnightCount()
+							}));
+
+		//We can also send all the information as an array --- need to keep a translation in the client side. 
+		// ws.send(JSON.stringify({message: "info",
+		// 						victoryPoints: player.getVictoryPoints(),
+		// 						resources: player.getResourceList(), //The first element will be null --- resource 0 is undefined. 
+		// 						structures: player.getStructureList(), 
+		// 						develop: player.getDevelopList(),
+		//						knights: player.getKnightCount()
+		// 						}));
+	};
 });
 
