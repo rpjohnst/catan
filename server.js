@@ -96,8 +96,10 @@ wss.on("connection", function (ws) {
 				}
 				break;
 			case "buildRoad":
-				if(board.addRoad(message.x, message.y, message.d, player)){
-					players.forEach(function(ws, player) {
+				if(board.addRoad(message.x, message.y, message.d, player) && player_hand[player].remainingRoads() != 0){
+					console.log("Building Road");
+					player_hand[turn].useTown();
+					players.forEach(function (ws, player) {
 						ws.send(JSON.stringify({
 							message: "buildRoad",
 							x: message.x, y: message.y, d: message.d,
@@ -110,7 +112,18 @@ wss.on("connection", function (ws) {
 
 				break;
 			case "turn":
-				updateTurn(ws, player);
+				updateTurn();
+				var dice = rollDice();
+				console.log(dice);
+				players.forEach(function (ws, player) {
+					ws.send(JSON.stringify({
+						message: "diceRoll",
+						value: dice
+					}));
+				});
+
+				//need to iterate through every hex with value of the dice roll, and award adjacent towns/cities the appropriate number of resources
+
 				break;
 			}
 		}).on("close", function (code, message) {
@@ -118,17 +131,18 @@ wss.on("connection", function (ws) {
 			close.emit("close", player);
 		});
 	});
-	function updateTurn(ws, player){
+	//Method for updating the turn. 
+	function updateTurn(){
 		turn = (turn + 1) % players.length;
 		players.forEach(function (ws, player){
 			ws.send(JSON.stringify({message: "turn", player: turn}));
 		});
 	};
-
+	//Method for sending an error to a socket.
 	function sendError(ws, errorMessage){
 		ws.send(JSON.stringify({message: "error", error: errorMessage}));
 	};
-
+	//Method for rolling the dice.
 	function rollDice(){
 		return Math.floor(Math.random()* (12 - 2)) + 2;
 	}
