@@ -116,8 +116,8 @@ class Player{
 
 	//Get the number of resources of a specific type that the player is holding. 
 	getResourceCount(cardValue){
-    console.log("getRC: getting " + cardValue);
-    console.log("getRC: returning " + this.resource_cards[cardValue]);
+    //console.log("getRC: getting " + cardValue);
+    //console.log("getRC: returning " + this.resource_cards[cardValue]);
 		return this.resource_cards[cardValue];
 	}
 

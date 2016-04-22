@@ -124,7 +124,24 @@ class Play {
 			case "buildTown":
 				this.board.addTown(message.x, message.y, message.d, message.player);
 				break;
-
+      
+      case "diceRoll":
+        var dice = message.value;
+        break;
+      
+      case "info":
+        var ids = ["victoryPoints", "wood", "brick", "ore", "wool", "grain", "cities", "towns", "roads", "develop", "knights"];
+        for(var i=0; i< ids.length; i++)
+        {
+          var id = ids[i];
+          var value = message[id];
+          var docel = $("#" + id);
+          if(docel)
+            docel.html(value);
+        }
+        
+        break;
+        
 			case "end":
 				currentState = new Lobby(ctx);
 				break;
@@ -260,6 +277,33 @@ let canvas = document.createElement("canvas");
 canvas.width = 525;
 canvas.height = 525;
 document.body.appendChild(canvas);
+
+function relMouseCoords(event){
+    var totalOffsetX = 0;
+    var totalOffsetY = 0;
+    var canvasX = 0;
+    var canvasY = 0;
+    var currentElement = this;
+
+    do{
+        totalOffsetX += currentElement.offsetLeft - currentElement.scrollLeft;
+        totalOffsetY += currentElement.offsetTop - currentElement.scrollTop;
+    }
+    while(currentElement = currentElement.offsetParent)
+
+    canvasX = event.pageX - totalOffsetX;
+    canvasY = event.pageY - totalOffsetY;
+
+    return {x:canvasX, y:canvasY}
+}
+HTMLCanvasElement.prototype.relMouseCoords = relMouseCoords;
+
+canvas.addEventListener("click", function (event) {
+  
+  var coords = $("canvas")[0].relMouseCoords(event);
+    
+  console.log("clicked canvas at " + coords.x  + "," + coords.y);
+});
 
 // TODO: replace this with proper turn handling in the state class
 let form = document.forms.coordinates;

@@ -115,10 +115,14 @@ wss.on("connection", function (ws) {
 				updateTurn();
 				var dice = rollDice();
 				console.log(dice);
-				console.log(board.hit[dice])
-				
+				//console.log(board.hit[dice])
+				if(dice == 7){
+          console.log("thief!!!!");
+          break; // TODO: Handle thief and discard
+        }
 				//need to iterate through every hex with value of the dice roll, and award adjacent towns/cities the appropriate number of resources
         var target_tiles = board.hit[dice];
+        
         for(var i=0; i < target_tiles.length; i++){
           
           var target = target_tiles[i];                         // Use both
@@ -142,7 +146,7 @@ wss.on("connection", function (ws) {
             
             if(building !== null){
               player_hand[building].addResourceCard(terrain, 1);
-              console.log("Added " + terrain + " to " + building);
+              console.log("Added " + translateTerrain(terrain) + " to " + translatePlayer(building));
             }
           } // end inner loop (adds resources to player)
         } // end loop
@@ -205,5 +209,30 @@ wss.on("connection", function (ws) {
 		//						knights: player.getKnightCount()
 		// 						}));
 	};
+  
+  function translateTerrain(index){
+    switch(index)
+    {
+      default: return "unknown";
+      case 1:  return "ORE";
+      case 2:  return "WOOD";
+      case 3:  return "WOOL";
+      case 4:  return "GRAIN";
+      case 5:  return "BRICK";
+    }
+  }
+  
+  function translatePlayer(index){
+      switch(index)
+      {
+        default: return "unknown";
+        case 0:  return "red (0)"
+        case 1:  return "white (1)";
+        case 2:  return "blue (2)";
+        case 3:  return "green (3)";
+      }
+  }
+
+  
 });
 
