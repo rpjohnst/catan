@@ -88,6 +88,7 @@ class Catan {
 		return {
 			[Catan.ROAD]: this.buildRoad,
 			[Catan.TOWN]: this.buildTown,
+			[Catan.CITY]: this.buildCity,
 		}[type].apply(this, [x, y, d, player, pregame]);
 	}
 
@@ -98,8 +99,9 @@ class Catan {
 		if (this.roads[y][x][d] != null) { return false; }
 		let valid = false;
 		for (let [ex, ey, ed] of this.endpointVertices(x, y, d)) {
-			if (this.buildings[ey][ex][ed] == player) { valid = true; }
-			else if (!pregame) {
+			if (this.buildings[ey][ex][ed] && this.buildings[ey][ex][ed].player == player) {
+				valid = true;
+			} else if (!pregame) {
 				for (let [px, py, pd] of this.protrudeEdges(ex, ey, ed)) {
 					if (this.roads[py][px][pd] == player) { valid = true; }
 				}
@@ -119,7 +121,16 @@ class Catan {
 			if (this.buildings[ay][ax][ad] != null) { return false; }
 		}
 
-		this.buildings[y][x][d] = player;
+		this.buildings[y][x][d] = { player: player, type: Catan.TOWN };
+		return true;
+	}
+
+	buildCity(x, y, d, player) {
+		// a city must be placed on top of a vertex that contains a town of the same player
+		let building = this.buildings[y][x][d];
+		if (building.player != player || building.type != Catan.TOWN) { return false; }
+
+		this.buildings[y][x][d] = { player: player, type: Catan.CITY };
 		return true;
 	}
 

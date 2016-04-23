@@ -106,8 +106,14 @@ wss.on("connection", function (ws) {
 					let terrain = board.tiles[ty][tx];
 					for (let [vx, vy, vd] of board.cornerVertices(tx, ty)) {
 						let building = board.buildings[vy][vx][vd];
-						if (building !== null) {
-							players[building].resources[terrain] += 1;
+						if (building) {
+							let amount;
+							if (building.type == Catan.TOWN) {
+								amount = 1;
+							} else if (building.type == Catan.CITY) {
+								amount = 2;
+							}
+							players[building.player].resources[terrain] += amount;
 						}
 					}
 				}
@@ -115,7 +121,9 @@ wss.on("connection", function (ws) {
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
 						message: "turn", player: turn, dice: dice,
-						resources: players[player].resources
+						pieces: players[player].pieces,
+						resources: players[player].resources,
+						cards: players[player].cards,
 					}));
 				});
 				break;

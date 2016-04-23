@@ -124,16 +124,38 @@ class Play {
 				this.turn = message.player;
 				this.dice = message.dice;
 
-				const ids = {
+				const resourceIds = {
 					[Catan.ORE]: "ore",
 					[Catan.WOOD]: "wood",
 					[Catan.WOOL]: "wool",
 					[Catan.GRAIN]: "grain",
 					[Catan.BRICK]: "brick",
 				};
-				for (let resource in ids) {
+				for (let resource in resourceIds) {
 					resource = +resource;
-					document.getElementById(ids[resource]).innerHTML = message.resources[resource];
+					document.getElementById(resourceIds[resource]).innerHTML =
+						message.resources[resource];
+				}
+
+				const pieceIds = {
+					[Catan.ROAD]: "roads",
+					[Catan.TOWN]: "towns",
+					[Catan.CITY]: "cities",
+				};
+				for (let piece in pieceIds) {
+					piece = +piece;
+					document.getElementById(pieceIds[piece]).innerHTML =
+						message.pieces[pieces];
+				}
+
+				const cardIds = {
+					[Catan.VICTORY_POINT]: "victoryPoints",
+					[Catan.KNIGHT]: "knights",
+				};
+				for (let card in cardIds) {
+					card = +card;
+					document.getElementById(cardIds[card]).innerHTML =
+						message.cards[card];
 				}
 				break;
 
@@ -274,11 +296,15 @@ class Play {
 		forEachTile(cx, cy, N, (x, y) => {
 			for (let d = 0; d < 2; d++) {
 				let building = this.board.buildings[y][x][d];
-				if (building == null) { continue; }
+				if (!building) { continue; }
 
 				let [px, py] = vertexToPixels(x, y, d);
-
-				let image = this.assets.towns[building];
+				let image;
+				if (building.type == Catan.TOWN) {
+					image = this.assets.towns[building.player];
+				} else if (building.type == Catan.CITY) {
+					image = this.assets.cities[building.player];
+				}
 				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 			}
 		});
@@ -358,6 +384,11 @@ form.buildRoad.addEventListener("click", function (event) {
 
 form.buildTown.addEventListener("click", function (event) {
 	currentState.build(Catan.TOWN, +form.x.value, +form.y.value, +form.d.value);
+	event.preventDefault();
+});
+
+form.buildCity.addEventListener("click", function (event) {
+	currentState.build(Catan.CITY, +form.x.value, +form.y.value, +form.d.value);
 	event.preventDefault();
 });
 
