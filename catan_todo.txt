@@ -22,7 +22,6 @@ TODO:
 	Dice
 
 * Trading menu(s)
-* Offset text for chits appropriately (unless using sprite?)
 
 [...]
 * Functions to handle trading

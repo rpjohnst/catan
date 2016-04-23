@@ -1,6 +1,6 @@
 "use strict";
 
-let Catan = require("../catan.js");
+let Catan = require("../catan");
 
 let currentState;
 let run = function (state) {
@@ -11,7 +11,7 @@ let run = function (state) {
 	})(performance.now());
 };
 
-const tileColors = [ "#f4a460", "#666666", "#003200", "#006400", "#ffff00", "#660000", "#0000ff" ];
+const tileColors = ["#f4a460", "#666666", "#003200", "#006400", "#ffff00", "#660000", "#0000ff"];
 const playerColors = ["#ff0000", "#ffffff", "#0000ff", "#00ff00"];
 
 const server = "ws://localhost:8081";
@@ -122,29 +122,25 @@ class Play {
 			switch (message.message) {
 			case "turn":
 				this.turn = message.player;
+				this.dice = message.dice;
+
+				const ids = {
+					[Catan.ORE]: "ore",
+					[Catan.WOOD]: "wood",
+					[Catan.WOOL]: "wool",
+					[Catan.GRAIN]: "grain",
+					[Catan.BRICK]: "brick",
+				};
+				for (let resource in ids) {
+					resource = +resource;
+					document.getElementById(ids[resource]).innerHTML = message.resources[resource];
+				}
 				break;
 
-			case "buildTown":
-				this.board.addTown(message.x, message.y, message.d, message.player);
+			case "build":
+				this.board.build(message.type, message.x, message.y, message.d, message.player);
 				break;
-      
-      case "diceRoll":
-        var dice = message.value;
-        break;
-      
-      case "info":
-        var ids = ["victoryPoints", "wood", "brick", "ore", "wool", "grain", "cities", "towns", "roads", "develop", "knights"];
-        for(var i=0; i< ids.length; i++)
-        {
-          var id = ids[i];
-          var value = message[id];
-          var docel = $("#" + id);
-          if(docel)
-            docel.html(value);
-        }
-        
-        break;
-        
+
 			case "end":
 				currentState = new Lobby(ctx);
 				break;
@@ -330,8 +326,8 @@ class Play {
 		});
 	}
 
-	buildTown(x, y, d) {
-		this.ws.send(JSON.stringify({ message: "buildTown", x: x, y: y, d: d }));
+	build(type, x, y, d) {
+		this.ws.send(JSON.stringify({ message: "build", type: type, x: x, y: y, d: d }));
 	}
 
 	endTurn() {
@@ -355,8 +351,13 @@ canvas.addEventListener("mousemove", function (event) {
 // TODO: replace this with proper turn handling in the state class
 let form = document.forms.coordinates;
 
+form.buildRoad.addEventListener("click", function (event) {
+	currentState.build(Catan.ROAD, +form.x.value, +form.y.value, +form.d.value);
+	event.preventDefault();
+});
+
 form.buildTown.addEventListener("click", function (event) {
-	currentState.buildTown(+form.x.value, +form.y.value, +form.d.value);
+	currentState.build(Catan.TOWN, +form.x.value, +form.y.value, +form.d.value);
 	event.preventDefault();
 });
 

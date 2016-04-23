@@ -10,6 +10,7 @@
 			<form name="coordinates">
 				<div>Coordinates: X: <input type="text" name="x"> Y: <input type="text" name="y"> Dir: <input type="text" name="d"></div>
 				<div>
+					<button name="buildRoad">Build Road</button>
 					<button name="buildTown">Build Town</button>
 					<button name="buildCity">Build City</button>
 					<button name="buildCard">Build Card</button>
@@ -19,35 +20,34 @@
 
 			<div id="citymenu"></div>
 			<div id="resources">
-        <table>
-          <thead>
-            <tr>
-              <th>Resource:</th>
-              <th>Count:</th>
-            </tr>          
-          </thead>
-          <tbody>
-            <tr>
-              <td>Ore</td><td><td id="ore">0</td>
-            </tr>
-            <tr>
-              <td>Wood</td><td><td id="wood">0</td>
-            </tr>
-            <tr>
-              <td>Wool</td><td><td id="wool">0</td>
-            </tr>
-            <tr>
-              <td>Grain</td><td><td id="grain">0</td>
-            </tr>
-            <tr>
-              <td>Brick</td><td><td id="brick">0</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+				<table>
+					<thead>
+						<tr>
+							<th>Resource:</th>
+							<th>Count:</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>Ore</td><td><td id="ore">0</td>
+						</tr>
+						<tr>
+							<td>Wood</td><td><td id="wood">0</td>
+						</tr>
+						<tr>
+							<td>Wool</td><td><td id="wool">0</td>
+						</tr>
+						<tr>
+							<td>Grain</td><td><td id="grain">0</td>
+						</tr>
+						<tr>
+							<td>Brick</td><td><td id="brick">0</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
 		</div>
 
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
 		<script src="js/bundle.js"></script>
 	</body>
 </html>

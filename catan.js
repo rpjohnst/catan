@@ -1,30 +1,5 @@
 "use strict";
 
-const NONE = 0,
-	ORE = 1,
-	WOOD = 2,
-	WOOL = 3,
-	GRAIN = 4,
-	BRICK = 5,
-	OCEAN = 6;
-
-const KNIGHT = 0,
-	YEAR_OF_PLENTY = 1,
-	MONOPOLY = 2,
-	VICTORY_POINT = 3,
-	ROAD_BUILDING = 4;
-
-const TILE_POOL = Array.prototype.concat(
-	repeat(NONE, 1),
-	repeat(ORE, 3),
-	repeat(BRICK, 3),
-	repeat(WOOD, 4),
-	repeat(GRAIN, 4),
-	repeat(WOOL, 4)
-);
-
-const CHIT_POOL = [ 5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11 ];
-
 class Catan {
 	constructor(board) {
 		// if we're deserializing a board, just read the data and stop
@@ -60,11 +35,11 @@ class Catan {
 			let terrain = tilePool.pop();
 			this.tiles[y][x] = terrain;
 
-			let chit = terrain == NONE ? 0 : chitPool.pop();
+			let chit = terrain == Catan.NONE ? 0 : chitPool.pop();
 			if (!this.hit[chit]) { this.hit[chit] = []; }
 			this.hit[chit].push([x, y]);
 
-			if (terrain == NONE) { this.theif = [x, y]; }
+			if (terrain == Catan.NONE) { this.theif = [x, y]; }
 		}
 
 		// add ground tiles
@@ -75,7 +50,7 @@ class Catan {
 
 		// add ocean tiles
 		ring(cx, cy, N + 1, (x, y) => {
-			this.tiles[y][x] = OCEAN;
+			this.tiles[y][x] = Catan.OCEAN;
 		});
 
 		function ring(cx, cy, radius, callback) {
@@ -91,26 +66,53 @@ class Catan {
 		}
 
 		// TODO: remove hard-coded initial board state
-		this.addTown(3, 3, 0, 0);
-		this.addRoad(3, 3, 0, 0);
-		this.addTown(3, 2, 1, 0);
-		this.addRoad(4, 1, 1, 0);
-		this.addTown(3, 5, 1, 1);
-		this.addRoad(4, 4, 0, 1);
-		this.addTown(2, 3, 0, 1);
-		this.addRoad(1, 3, 2, 1);
-		this.addTown(5, 3, 0, 2);
-		this.addRoad(4, 3, 2, 2);
-		this.addTown(1, 5, 1, 2);
-		this.addRoad(2, 4, 0, 2);
-		this.addTown(2, 2, 1, 3);
-		this.addRoad(3, 1, 0, 3);
-		this.addTown(1, 2, 1, 3);
-		this.addRoad(1, 2, 2, 3);
+		this.build(Catan.TOWN, 3, 3, 0, 0);
+		this.build(Catan.ROAD, 3, 3, 0, 0);
+		this.build(Catan.TOWN, 3, 2, 1, 0);
+		this.build(Catan.ROAD, 4, 1, 1, 0);
+		this.build(Catan.TOWN, 3, 5, 1, 1);
+		this.build(Catan.ROAD, 4, 4, 0, 1);
+		this.build(Catan.TOWN, 2, 3, 0, 1);
+		this.build(Catan.ROAD, 1, 3, 2, 1);
+		this.build(Catan.TOWN, 5, 3, 0, 2);
+		this.build(Catan.ROAD, 4, 3, 2, 2);
+		this.build(Catan.TOWN, 1, 5, 1, 2);
+		this.build(Catan.ROAD, 2, 4, 0, 2);
+		this.build(Catan.TOWN, 2, 2, 1, 3);
+		this.build(Catan.ROAD, 3, 1, 0, 3);
+		this.build(Catan.TOWN, 1, 2, 1, 3);
+		this.build(Catan.ROAD, 1, 2, 2, 3);
+	}
+
+	build(type, x, y, d, player, pregame) {
+		return {
+			[Catan.ROAD]: this.buildRoad,
+			[Catan.TOWN]: this.buildTown,
+		}[type].apply(this, [x, y, d, player, pregame]);
+	}
+
+	// an edge is specified as a tile and either west, north, or east (0/1/2)
+	buildRoad(x, y, d, player, pregame) {
+		// a road must be placed on an empty edge next to a road or settlement of the same player
+		// during pregame, a road must be next to a settlement of the same player
+		if (this.roads[y][x][d] != null) { return false; }
+		let valid = false;
+		for (let [ex, ey, ed] of this.endpointVertices(x, y, d)) {
+			if (this.buildings[ey][ex][ed] == player) { valid = true; }
+			else if (!pregame) {
+				for (let [px, py, pd] of this.protrudeEdges(ex, ey, ed)) {
+					if (this.roads[py][px][pd] == player) { valid = true; }
+				}
+			}
+		}
+		if (!valid) { return false; }
+
+		this.roads[y][x][d] = player;
+		return true;
 	}
 
 	// a vertex is specified as a tile and either left or right (0/1)
-	addTown(x, y, d, player) {
+	buildTown(x, y, d, player) {
 		// a town must be placed on an empty vertex not adjacent to any other towns
 		if (this.buildings[y][x][d] != null) { return false; }
 		for (let [ax, ay, ad] of this.adjacentVertices(x, y, d)) {
@@ -121,24 +123,12 @@ class Catan {
 		return true;
 	}
 
-	// an edge is specified as a tile and either west, north, or east (0/1/2)
-	addRoad(x, y, d, player, pregame) {
-		// a road must be placed on an empty edge next to a road or settlement of the same player
-		// during pregame, a road must be next to a settlement of the same player
-		if (this.roads[y][x][d] != null) { return false; }
-		let valid = false;
-		for (let [ex, ey, ed] of this.endpointVertices(x, y, d)) {
-			if (this.buildings[ey][ex][ed] == player) { valid = true; }
-			else if (!pregame) {
-				for (let [px, py, pd] of this.protrudeEdges(ex, ey, ed)) {
-					if (this.roads[px][py][pd] == player) { valid = true; }
-				}
-			}
-		}
-		if (!valid) { return false; }
-
-		this.roads[y][x][d] = player;
-		return true;
+	// corner vertices of a tile
+	cornerVertices(x, y) {
+		return [
+			[x, y, 1], [x + 1, y, 0], [x - 1, y + 1, 1],
+			[x, y, 0], [x - 1, y, 1], [x + 1, y - 1, 0],
+		];
 	}
 
 	// adjacent vertices of a vertex
@@ -160,6 +150,38 @@ class Catan {
 		else if (d == 1) { return [[x + 1, y - 1, 1], [x + 1, y - 1, 0], [x, y, 2]]; }
 	}
 };
+
+// building types
+Catan.ROAD = 0;
+Catan.TOWN = 1;
+Catan.CITY = 2;
+
+// resource and tile types
+Catan.NONE = 0;
+Catan.ORE = 1;
+Catan.WOOD = 2;
+Catan.WOOL = 3;
+Catan.GRAIN = 4;
+Catan.BRICK = 5;
+Catan.OCEAN = 6;
+
+// development cards
+Catan.KNIGHT = 0;
+Catan.YEAR_OF_PLENTY = 1;
+Catan.MONOPOLY = 2;
+Catan.VICTORY_POINT = 3;
+Catan.ROAD_BUILDING = 4;
+
+const TILE_POOL = Array.prototype.concat(
+	repeat(Catan.NONE, 1),
+	repeat(Catan.ORE, 3),
+	repeat(Catan.BRICK, 3),
+	repeat(Catan.WOOD, 4),
+	repeat(Catan.GRAIN, 4),
+	repeat(Catan.WOOL, 4)
+);
+
+const CHIT_POOL = [ 5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11 ];
 
 function repeat(element, times) {
 	let array = [];
