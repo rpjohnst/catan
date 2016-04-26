@@ -63,6 +63,8 @@ wss.on("connection", function (ws) {
 		// TODO: handle pregame
 		ws.send(JSON.stringify({ message: "turn", player: turn }));
 
+		// TODO: Distribute initial resources
+
 		ws.on("message", function (messageJson) {
 			console.log("received from player %d: %s", player, messageJson);
 

@@ -66,22 +66,22 @@ class Catan {
 		}
 
 		// TODO: remove hard-coded initial board state
-		this.build(Catan.TOWN, 3, 3, 0, 0);
-		this.build(Catan.ROAD, 3, 3, 0, 0);
-		this.build(Catan.TOWN, 3, 2, 1, 0);
-		this.build(Catan.ROAD, 4, 1, 1, 0);
-		this.build(Catan.TOWN, 3, 5, 1, 1);
-		this.build(Catan.ROAD, 4, 4, 0, 1);
-		this.build(Catan.TOWN, 2, 3, 0, 1);
-		this.build(Catan.ROAD, 1, 3, 2, 1);
-		this.build(Catan.TOWN, 5, 3, 0, 2);
-		this.build(Catan.ROAD, 4, 3, 2, 2);
-		this.build(Catan.TOWN, 1, 5, 1, 2);
-		this.build(Catan.ROAD, 2, 4, 0, 2);
-		this.build(Catan.TOWN, 2, 2, 1, 3);
-		this.build(Catan.ROAD, 3, 1, 0, 3);
-		this.build(Catan.TOWN, 1, 2, 1, 3);
-		this.build(Catan.ROAD, 1, 2, 2, 3);
+		this.build(Catan.TOWN, 3, 3, 0, 0, true);
+		this.build(Catan.ROAD, 3, 3, 0, 0, true);
+		this.build(Catan.TOWN, 3, 2, 1, 0, true);
+		this.build(Catan.ROAD, 4, 1, 1, 0, true);
+		this.build(Catan.TOWN, 3, 5, 1, 1, true);
+		this.build(Catan.ROAD, 4, 4, 0, 1, true);
+		this.build(Catan.TOWN, 2, 3, 0, 1, true);
+		this.build(Catan.ROAD, 1, 3, 2, 1, true);
+		this.build(Catan.TOWN, 5, 3, 0, 2, true);
+		this.build(Catan.ROAD, 4, 3, 2, 2, true);
+		this.build(Catan.TOWN, 1, 5, 1, 2, true);
+		this.build(Catan.ROAD, 2, 4, 0, 2, true);
+		this.build(Catan.TOWN, 2, 2, 1, 3, true);
+		this.build(Catan.ROAD, 3, 1, 0, 3, true);
+		this.build(Catan.TOWN, 1, 2, 1, 3, true);
+		this.build(Catan.ROAD, 1, 2, 2, 3, true);
 	}
 
 	build(type, x, y, d, player, pregame) {
@@ -91,47 +91,104 @@ class Catan {
 			[Catan.CITY]: this.buildCity,
 		}[type].apply(this, [x, y, d, player, pregame]);
 	}
-
-	// an edge is specified as a tile and either west, north, or east (0/1/2)
-	buildRoad(x, y, d, player, pregame) {
+	
+	validRoad(x, y, d, player, pregame){
 		// a road must be placed on an empty edge next to a road or settlement of the same player
 		// during pregame, a road must be next to a settlement of the same player
+		
+		if(x < 0 || y < 0 || x > 6 || y > 5){
+			return false;
+		}
+		
+		// can't occupy spot of existing road
 		if (this.roads[y][x][d] != null) { return false; }
+		
 		let valid = false;
 		for (let [ex, ey, ed] of this.endpointVertices(x, y, d)) {
+			if(!this.buildings[ey] || !this.buildings[ey][ex]) continue;
 			if (this.buildings[ey][ex][ed] && this.buildings[ey][ex][ed].player == player) {
 				valid = true;
 			} else if (!pregame) {
 				for (let [px, py, pd] of this.protrudeEdges(ex, ey, ed)) {
+					if(!this.roads[py] || !this.roads[py][px]) continue;
 					if (this.roads[py][px][pd] == player) { valid = true; }
 				}
 			}
 		}
+		
+		return valid;
+	}
+
+	// an edge is specified as a tile and either west, north, or east (0/1/2)
+	buildRoad(x, y, d, player, pregame) {
+		let valid = this.validRoad(x, y, d, player, pregame);
 		if (!valid) { return false; }
 
 		this.roads[y][x][d] = player;
 		return true;
 	}
+	
+	validTown(x, y, d, player, pregame) {
 
-	// a vertex is specified as a tile and either left or right (0/1)
-	buildTown(x, y, d, player) {
-		// a town must be placed on an empty vertex not adjacent to any other towns
+		if(!this.buildings[y] || !this.buildings[y][x]) return false;
+
+		// Ensure that this vertex touches at least one land tile
+		let land = false;
+		for(let [tx, ty] of this.touchesTiles(x, y, d)){
+			if(this.tiles[ty] != undefined && this.tiles[ty][tx] != undefined
+				&& this.tiles[ty][tx] != Catan.OCEAN)
+				land = true;
+		}
+		if(!land) return false;
+
+		// A town must be placed on an empty vertex not adjacent to any other towns
 		if (this.buildings[y][x][d] != null) { return false; }
 		for (let [ax, ay, ad] of this.adjacentVertices(x, y, d)) {
+			if(!this.buildings[ay] || !this.buildings[ay][ax])
+				continue;
 			if (this.buildings[ay][ax][ad] != null) { return false; }
 		}
 
+		// Once the pregame state ends, a town must touch a road belonging to current player
+		if(!pregame){
+			let touches = false;
+			for(let [ex, ey, ed] of this.protrudeEdges(x, y, d)){
+				if(this.roads[ey][ex][ed] == player)
+					touches = true;
+			}
+			if(!touches) return false;
+		}
+
+		return true;
+	}
+
+	// a vertex is specified as a tile and either left or right (0/1)
+	buildTown(x, y, d, player, pregame) {
+		if(!this.validTown(x, y, d, player, pregame)) return false;
 		this.buildings[y][x][d] = { player: player, type: Catan.TOWN };
+		return true;
+	}
+	
+	validCity(x, y, d, player) {
+		// a city must be placed on top of a vertex that contains a town of the same player
+		if(!this.buildings[y] || !this.buildings[y][x] || !this.buildings[y][x][d])
+			return false;
+		let building = this.buildings[y][x][d];
+		if (building.player != player || building.type != Catan.TOWN) { return false; }
 		return true;
 	}
 
 	buildCity(x, y, d, player) {
-		// a city must be placed on top of a vertex that contains a town of the same player
-		let building = this.buildings[y][x][d];
-		if (building.player != player || building.type != Catan.TOWN) { return false; }
-
+		if(!this.validCity(x, y, d, player)) return false;
 		this.buildings[y][x][d] = { player: player, type: Catan.CITY };
 		return true;
+	}
+
+	touchesTiles(x, y, d) {
+		//(u,v,L) → (u,v) (u-1,v) (u-1,v+1)
+		//(u,v,R) → (u+1,v) (u+1,v-1) (u,v)
+		if (d == 0) { return [[x, y], [x-1, y], [x-1, y+1]]; }
+		else if (d == 1) { return [[x+1, y], [x+1, y-1], [x,y]]; }
 	}
 
 	// corner vertices of a tile

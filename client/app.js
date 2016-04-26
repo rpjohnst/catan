@@ -15,6 +15,7 @@ const tileColors = ["#f4a460", "#666666", "#003200", "#006400", "#ffff00", "#660
 const playerColors = ["#ff0000", "#ffffff", "#0000ff", "#00ff00"];
 
 const server = "ws://" + window.location.hostname + ":8081";
+
 class Lobby {
 	constructor(ctx) {
 		this.ctx = ctx;
@@ -325,6 +326,54 @@ class Play {
 			}
 		}
 
+		document.forms.coordinates.x.value = mvx;
+		document.forms.coordinates.y.value = mvy;
+		document.forms.coordinates.d.value = mvd;
+
+		currentState.lex = mex;
+		currentState.ley = mey;
+		currentState.led = med;
+
+		// draw "under construction" items
+		if(currentState.action == "buildTown")
+		{
+					if(currentState.board.validTown(mvx, mvy, mvd, currentState.player))
+					{
+					let [px, py] = vertexToPixels(mvx, mvy, mvd);
+					let image = (currentState.action == "buildTown")? this.assets.towns[currentState.player]: this.assets.cities[currentState.player];
+					ctx.globalAlpha = 0.5;
+					ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
+					ctx.globalAlpha = 1.0;
+					}
+		}
+		
+		if(currentState.action == "buildCity")
+		{
+			if(currentState.board.validCity(mvx, mvy, mvd, currentState.player))
+			{
+					let [px, py] = vertexToPixels(mvx, mvy, mvd);
+					let image = (currentState.action == "buildTown")? this.assets.towns[currentState.player]: this.assets.cities[currentState.player];
+					ctx.globalAlpha = 0.5;
+					ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
+					ctx.globalAlpha = 1.0;
+				}
+		}
+		
+		if(currentState.action == "buildRoad")
+		{
+				if(currentState.board.validRoad(mex, mey, med, currentState.player, false))
+				{
+					let [[x1, y1, d1], [x2, y2, d2]] = this.board.endpointVertices(mex, mey, med);
+					let [px1, py1] = vertexToPixels(x1, y1, d1);
+					let [px2, py2] = vertexToPixels(x2, y2, d2);
+
+					ctx.strokeStyle = playerColors[currentState.player]; ctx.lineWidth = 4;
+					ctx.globalAlpha = 0.5;
+					ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
+					ctx.globalAlpha = 1.0;
+				}
+		}
+
 		// draw theif
 		{
 			let image = this.assets.pawn;
@@ -432,30 +481,41 @@ canvas.addEventListener("mousemove", function (event) {
 	currentState.mouseY = event.clientY - rect.top;
 });
 
-{
-	// TODO: replace this with proper turn handling in the state class
-	let form = document.forms.coordinates;
+canvas.addEventListener("click", function (event) {
+	if(!currentState.action) return;
+	
+	switch(currentState.action){
+		case "buildTown": currentState.build(Catan.TOWN, +form.x.value, +form.y.value, +form.d.value); break;
+		case "buildRoad": currentState.build(Catan.ROAD, currentState.lex, currentState.ley, currentState.led); break;
+		case "buildCity": currentState.build(Catan.CITY, +form.x.value, +form.y.value, +form.d.value); break;
+		default: return;
+	}
+	delete currentState.action;
+	event.preventDefault();
+});
 
-	form.buildRoad.addEventListener("click", function (event) {
-		currentState.build(Catan.ROAD, +form.x.value, +form.y.value, +form.d.value);
-		event.preventDefault();
-	});
+// TODO: replace this with proper turn handling in the state class
+let form = document.forms.coordinates;
 
-	form.buildTown.addEventListener("click", function (event) {
-		currentState.build(Catan.TOWN, +form.x.value, +form.y.value, +form.d.value);
-		event.preventDefault();
-	});
+form.buildRoad.addEventListener("click", function (event) {
+	currentState.action = "buildRoad";
+	event.preventDefault();
+});
 
-	form.buildCity.addEventListener("click", function (event) {
-		currentState.build(Catan.CITY, +form.x.value, +form.y.value, +form.d.value);
-		event.preventDefault();
-	});
+form.buildTown.addEventListener("click", function (event) {
+	currentState.action = "buildTown";
+	event.preventDefault();
+});
 
-	form.endTurn.addEventListener("click", function (event) {
-		currentState.endTurn();
-		event.preventDefault();
-	});
-}
+form.buildCity.addEventListener("click", function (event) {
+	currentState.action = "buildCity";
+	event.preventDefault();
+});
+
+form.endTurn.addEventListener("click", function (event) {
+	currentState.endTurn();
+	event.preventDefault();
+});
 
 {
 	let tradingForm = document.forms.trading;
