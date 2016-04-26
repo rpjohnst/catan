@@ -52,6 +52,9 @@ wss.on("connection", function (ws) {
 			ws.close();
 		});
 	});
+	
+	let tradingOngoing = false;
+	let tradingOffers = [];
 
 	clients.forEach(function(ws, player) {
 		ws.removeAllListeners("close");
@@ -63,12 +66,12 @@ wss.on("connection", function (ws) {
 		ws.on("message", function (messageJson) {
 			console.log("received from player %d: %s", player, messageJson);
 
-			if (player != turn) {
+
+			let message = JSON.parse(messageJson);
+			if (player != turn && !(tradingOngoing && message.message == "offerTrade")) {
 				sendError(ws, "turn");
 				return;
 			}
-
-			let message = JSON.parse(messageJson);
 			switch (message.message) {
 			default:
 				sendError(ws, "message");
@@ -84,12 +87,49 @@ wss.on("connection", function (ws) {
 				}
 
 				players[turn].build(message.type);
+				sendResources(clients[turn], players[turn].resources);
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
 						message: "build", type: message.type,
 						x: message.x, y: message.y, d: message.d,
 						player: turn
 					}));
+				});
+				break;
+				
+			case "offerTrade":
+				if (!players[player].hasResources(message.offer)) {
+					sendError(ws, "offer");
+					break;
+				}
+				
+				if (player == turn) {
+					tradingOngoing = true;
+					// TODO: Invalidate trades if offer changed?
+				}
+				
+				tradingOffers[player] = message.offer;
+				clients.forEach(function (ws, player) {
+					ws.send(JSON.stringify({
+						message: "offerTrade", offer: message.offer
+						player: player
+					}));
+				});
+				break;
+				
+			case "confirmTrade":
+				for (let resourceType in tradingOffers[player]) {
+					players[turn].resources[resourceType] += (tradingOffers[message.player][resourceType] - tradingOffers[turn][resourceType]);
+					players[message.player].resources[resourceType] += (tradingOffers[turn][resourceType] - tradingOffers[message.player][resourceType]);
+				}
+				
+				tradingOngoing = false;
+				tradingOffers = [];
+				
+				sendResources(clients[turn], players[turn].resources);
+				sendResources(clients[message.player], players[message.player].resources);
+				clients.forEach(function (ws, player) {
+					ws.send(JSON.stringify({ message: "confirmTrade" }));
 				});
 				break;
 
@@ -133,6 +173,10 @@ wss.on("connection", function (ws) {
 			close.emit("close", player);
 		});
 	});
+	
+	function sendResources(ws, resources) {
+		ws.send(JSON.stringify({ message: "resources", resources: resources });
+	}
 
 	function sendError(ws, message) {
 		ws.send(JSON.stringify({ message: "error", error: message }));

@@ -34,15 +34,10 @@ class Player{
 			[Catan.ROAD_BUILDING]: 0,
 		};
 	}
-
-	canAfford(type) {
-		if (this.pieces[type] == 0) {
-			return false;
-		}
-
-		let costs = COST[type];
-		for (let costType in costs) {
-			if (this.resources[costType] < costs[costType]) {
+	
+	hasResources(resourceSet) {
+		for (let resourceType in resourceSet) {
+			if (this.resources[resourceType] < resourceSet[resourceType]) {
 				return false;
 			}
 		}
@@ -50,11 +45,24 @@ class Player{
 		return true;
 	}
 
+	spendResources(resourceSet) {
+		for (let resourceType in resourceSet) {
+			this.resources[resourceType] -= resourceSet[resourceType];
+		}
+	}
+
+	canAfford(type) {
+		if (this.pieces[type] == 0) {
+			return false;
+		}
+
+		let costs = COST[type];
+		return hasResources(costs);
+	}
+	
 	build(type) {
 		let costs = COST[type];
-		for (let costType in costs) {
-			this.resources[costType] -= costs[costType];
-		}
+		spendResources(costs);
 	}
 };
 
