@@ -109,15 +109,21 @@ wss.on("connection", function (ws) {
 				}
 				
 				tradingOffers[player] = message.offer;
+				let offeringPlayer = player;
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
-						message: "offerTrade", offer: message.offer
-						player: player
+						message: "offerTrade", offer: message.offer,
+						player: offeringPlayer
 					}));
 				});
 				break;
 				
 			case "confirmTrade":
+				if (!tradingOngoing || message.player == turn) {
+					sendError(ws, "confirm");
+					break;
+				}
+				
 				for (let resourceType in tradingOffers[player]) {
 					players[turn].resources[resourceType] += (tradingOffers[message.player][resourceType] - tradingOffers[turn][resourceType]);
 					players[message.player].resources[resourceType] += (tradingOffers[turn][resourceType] - tradingOffers[message.player][resourceType]);
@@ -129,7 +135,15 @@ wss.on("connection", function (ws) {
 				sendResources(clients[turn], players[turn].resources);
 				sendResources(clients[message.player], players[message.player].resources);
 				clients.forEach(function (ws, player) {
-					ws.send(JSON.stringify({ message: "confirmTrade" }));
+					ws.send(JSON.stringify({ message: "endTrade" }));
+				});
+				break;
+				
+			case "cancelTrade":
+				tradingOngoing = false;
+				tradingOffers = [];
+				clients.forEach(function (ws, player) {
+					ws.send(JSON.stringify({ message: "endTrade" }));
 				});
 				break;
 
@@ -162,10 +176,11 @@ wss.on("connection", function (ws) {
 					ws.send(JSON.stringify({
 						message: "turn", player: turn, dice: dice,
 						pieces: players[player].pieces,
-						resources: players[player].resources,
 						cards: players[player].cards,
 					}));
+					sendResources(ws, players[player].resources);
 				});
+				
 				break;
 			}
 		}).on("close", function (code, message) {
@@ -175,7 +190,7 @@ wss.on("connection", function (ws) {
 	});
 	
 	function sendResources(ws, resources) {
-		ws.send(JSON.stringify({ message: "resources", resources: resources });
+		ws.send(JSON.stringify({ message: "resources", resources: resources }));
 	}
 
 	function sendError(ws, message) {

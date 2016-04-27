@@ -14,7 +14,7 @@ let run = function (state) {
 const tileColors = ["#f4a460", "#666666", "#003200", "#006400", "#ffff00", "#660000", "#0000ff"];
 const playerColors = ["#ff0000", "#ffffff", "#0000ff", "#00ff00"];
 
-const server = "ws://localhost:8081";
+const server = "ws://" + window.location.hostname + ":8081";
 class Lobby {
 	constructor(ctx) {
 		this.ctx = ctx;
@@ -111,6 +111,8 @@ class Play {
 		this.board = board;
 		this.player = player;
 		this.turn = turn;
+		this.tradingOffers = [];
+		this.tradingOngoing = false;
 
 		this.mouseX = 0;
 		this.mouseY = 0;
@@ -124,19 +126,6 @@ class Play {
 				this.turn = message.player;
 				this.dice = message.dice;
 
-				const resourceIds = {
-					[Catan.ORE]: "ore",
-					[Catan.WOOD]: "wood",
-					[Catan.WOOL]: "wool",
-					[Catan.GRAIN]: "grain",
-					[Catan.BRICK]: "brick",
-				};
-				for (let resource in resourceIds) {
-					resource = +resource;
-					document.getElementById(resourceIds[resource]).innerHTML =
-						message.resources[resource];
-				}
-
 				const pieceIds = {
 					[Catan.ROAD]: "roads",
 					[Catan.TOWN]: "towns",
@@ -145,7 +134,7 @@ class Play {
 				for (let piece in pieceIds) {
 					piece = +piece;
 					document.getElementById(pieceIds[piece]).innerHTML =
-						message.pieces[pieces];
+						message.pieces[piece];
 				}
 
 				const cardIds = {
@@ -158,9 +147,27 @@ class Play {
 						message.cards[card];
 				}
 				break;
+				
+			case "resources":
+				for (let resource in Play.resourceNames) {
+					resource = +resource;
+					document.getElementById(Play.resourceNames[resource]).innerHTML =
+						message.resources[resource];
+				}
+				break;
 
 			case "build":
 				this.board.build(message.type, message.x, message.y, message.d, message.player);
+				break;
+				
+			case "offerTrade":
+				this.tradingOngoing = true;
+				this.tradingOffers[message.player] = message.offer;
+				break;
+				
+			case "endTrade":
+				this.tradingOngoing = false;
+				this.tradingOffers = [];
 				break;
 
 			case "end":
@@ -180,7 +187,7 @@ class Play {
 		let tileToPixels = function (x, y) {
 			let xx = x - 3, yy = y - 3;
 			return [
-				width / 2 + hexagon_narrow_width * xx,
+				width / 4 + hexagon_narrow_width * xx,
 				height / 2 - hexagon_height * (xx / 2 + yy)
 			];
 		};
@@ -194,7 +201,7 @@ class Play {
 
 		let pixelsToTile = function (px, py) {
 			// convert to fractional cube coordinates
-			let x = (px - width / 2) / hexagon_narrow_width,
+			let x = (px - width / 4) / hexagon_narrow_width,
 				y = (height / 2 - py) / hexagon_height - x / 2,
 				z = -(x + y);
 
@@ -350,10 +357,53 @@ class Play {
 				}
 			}
 		});
+		
+		if (this.tradingOngoing) {
+			ctx.font = "14px sans-serif";
+			ctx.textAlign = "center";
+			ctx.textBaseline = "top";
+			ctx.fillStyle = "0xfff";
+			
+			let j = 0;
+			for (let i = 0; i < 4; i++) {
+				let tx, ty;
+				if (i == this.turn) {
+					tx = width * 3 / 4;
+					ty = 100;
+				} else {
+					tx = width * (7 + 2 * j) / 12;
+					ty = 200;
+					j++;
+				}
+				
+				
+				ctx.fillText("Player " + i + " Offers:", tx, ty);
+				let offerText = [];
+				let offer = this.tradingOffers[i];
+				for (let resourceType in offer) {
+					if (offer[resourceType] > 0) {
+						offerText.push(offer[resourceType].toString() + " " + Play.resourceNames[resourceType]);
+					}
+				}
+				ctx.fillText(offerText.join(", "), tx, ty + 16);
+			}
+		}
 	}
 
 	build(type, x, y, d) {
 		this.ws.send(JSON.stringify({ message: "build", type: type, x: x, y: y, d: d }));
+	}
+	
+	offerTrade(offer) {
+		this.ws.send(JSON.stringify({ message: "offerTrade", offer: offer }));
+	}
+	
+	confirmTrade(player) {
+		this.ws.send(JSON.stringify({ message: "confirmTrade", player: player }));
+	}
+	
+	cancelTrade() {
+		this.ws.send(JSON.stringify({ message: "cancelTrade" }));
 	}
 
 	endTurn() {
@@ -361,10 +411,18 @@ class Play {
 	}
 }
 
+Play.resourceNames = {
+	[Catan.ORE]: "ore",
+	[Catan.WOOD]: "wood",
+	[Catan.WOOL]: "wool",
+	[Catan.GRAIN]: "grain",
+	[Catan.BRICK]: "brick",
+};
+
 let catan = new Catan();
 
 let canvas = document.createElement("canvas");
-canvas.width = 525;
+canvas.width = 1050;
 canvas.height = 525;
 document.body.appendChild(canvas);
 
@@ -374,28 +432,58 @@ canvas.addEventListener("mousemove", function (event) {
 	currentState.mouseY = event.clientY - rect.top;
 });
 
-// TODO: replace this with proper turn handling in the state class
-let form = document.forms.coordinates;
+{
+	// TODO: replace this with proper turn handling in the state class
+	let form = document.forms.coordinates;
 
-form.buildRoad.addEventListener("click", function (event) {
-	currentState.build(Catan.ROAD, +form.x.value, +form.y.value, +form.d.value);
-	event.preventDefault();
-});
+	form.buildRoad.addEventListener("click", function (event) {
+		currentState.build(Catan.ROAD, +form.x.value, +form.y.value, +form.d.value);
+		event.preventDefault();
+	});
 
-form.buildTown.addEventListener("click", function (event) {
-	currentState.build(Catan.TOWN, +form.x.value, +form.y.value, +form.d.value);
-	event.preventDefault();
-});
+	form.buildTown.addEventListener("click", function (event) {
+		currentState.build(Catan.TOWN, +form.x.value, +form.y.value, +form.d.value);
+		event.preventDefault();
+	});
 
-form.buildCity.addEventListener("click", function (event) {
-	currentState.build(Catan.CITY, +form.x.value, +form.y.value, +form.d.value);
-	event.preventDefault();
-});
+	form.buildCity.addEventListener("click", function (event) {
+		currentState.build(Catan.CITY, +form.x.value, +form.y.value, +form.d.value);
+		event.preventDefault();
+	});
 
-form.endTurn.addEventListener("click", function (event) {
-	currentState.endTurn();
-	event.preventDefault();
-});
+	form.endTurn.addEventListener("click", function (event) {
+		currentState.endTurn();
+		event.preventDefault();
+	});
+}
+
+{
+	let tradingForm = document.forms.trading;
+	tradingForm.offerTrade.addEventListener("click", function (event) {
+		currentState.offerTrade({
+			[Catan.ORE]: +tradingForm.ore.value,
+			[Catan.WOOD]: +tradingForm.wood.value,
+			[Catan.WOOL]: +tradingForm.wool.value,
+			[Catan.GRAIN]: +tradingForm.grain.value,
+			[Catan.BRICK]: +tradingForm.brick.value,
+		});
+		event.preventDefault();
+	});
+	
+	tradingForm.cancelTrade.addEventListener("click", function (event) {
+		currentState.cancelTrade();
+		event.preventDefault();
+	});
+	
+	[
+		tradingForm.accept0, tradingForm.accept1, tradingForm.accept2, tradingForm.accept3 
+	].forEach(function (button, i) {
+		button.addEventListener("click", function (event) {
+			currentState.confirmTrade(i);
+			event.preventDefault();
+		});
+	});
+}
 
 let ctx = canvas.getContext("2d");
 run(new Lobby(ctx));

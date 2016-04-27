@@ -26,7 +26,7 @@ class Player{
 			[Catan.GRAIN]: 0,
 			[Catan.BRICK]: 0,
 		};
-		this.development_cards = {
+		this.cards = {
 			[Catan.KNIGHT]: 0,
 			[Catan.YEAR_OF_PLENTY]: 0,
 			[Catan.MONOPOLY]: 0,
