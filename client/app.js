@@ -131,27 +131,6 @@ class Play {
 			case "turn":
 				this.turn = message.player;
 				this.dice = message.dice;
-
-				const pieceIds = {
-					[Catan.ROAD]: "roads",
-					[Catan.TOWN]: "towns",
-					[Catan.CITY]: "cities",
-				};
-				for (let piece in pieceIds) {
-					piece = +piece;
-					document.getElementById(pieceIds[piece]).innerHTML =
-						message.pieces[piece];
-				}
-
-				const cardIds = {
-					[Catan.VICTORY_POINT]: "victoryPoints",
-					[Catan.KNIGHT]: "knights",
-				};
-				for (let card in cardIds) {
-					card = +card;
-					document.getElementById(cardIds[card]).innerHTML =
-						message.cards[card];
-				}
 				break;
 				
 			case "resources":
@@ -159,6 +138,18 @@ class Play {
 					resource = +resource;
 					document.getElementById(Play.resourceNames[resource]).innerHTML =
 						message.resources[resource];
+				}
+
+				for (let piece in Play.pieceIds) {
+					piece = +piece;
+					document.getElementById(Play.pieceIds[piece]).innerHTML =
+						message.pieces[piece];
+				}
+
+				for (let card in Play.cardIds) {
+					card = +card;
+					document.getElementById(Play.cardIds[card]).innerHTML =
+						message.cards[card];
 				}
 				break;
 
@@ -382,10 +373,10 @@ class Play {
 		currentState.lvx = mvx; currentState.lvy = mvy; currentState.lvd = mvd;
 		currentState.lex = mex; currentState.ley = mey; currentState.led = med;
 		
-		// draw thief
+		// draw robber
 		{
 			let image = this.assets.pawn;
-			let [px, py] = tileToPixels(this.board.thief[0], this.board.thief[1]);
+			let [px, py] = tileToPixels(this.board.robber[0], this.board.robber[1]);
 			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 		}
 
@@ -474,6 +465,17 @@ Play.resourceNames = {
 	[Catan.WOOL]: "wool",
 	[Catan.GRAIN]: "grain",
 	[Catan.BRICK]: "brick",
+};
+
+Play.pieceIds = {
+	[Catan.ROAD]: "roads",
+	[Catan.TOWN]: "towns",
+	[Catan.CITY]: "cities",
+};
+
+Play.cardIds = {
+	[Catan.VICTORY_POINT]: "victoryPoints",
+	[Catan.KNIGHT]: "knights",
 };
 
 let catan = new Catan();

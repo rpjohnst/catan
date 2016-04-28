@@ -55,6 +55,8 @@ wss.on("connection", function (ws) {
 	
 	let tradingOngoing = false;
 	let tradingOffers = [];
+	
+	let handlingRobber = false;
 
 	clients.forEach(function(ws, player) {
 		ws.removeAllListeners("close");
@@ -64,6 +66,7 @@ wss.on("connection", function (ws) {
 		ws.send(JSON.stringify({ message: "turn", player: turn }));
 
 		// TODO: Distribute initial resources
+		sendResources(ws, players[player]);
 
 		ws.on("message", function (messageJson) {
 			console.log("received from player %d: %s", player, messageJson);
@@ -89,7 +92,7 @@ wss.on("connection", function (ws) {
 				}
 
 				players[turn].build(message.type);
-				sendResources(clients[turn], players[turn].resources);
+				sendResources(clients[turn], players[turn]);
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
 						message: "build", type: message.type,
@@ -134,8 +137,8 @@ wss.on("connection", function (ws) {
 				tradingOngoing = false;
 				tradingOffers = [];
 				
-				sendResources(clients[turn], players[turn].resources);
-				sendResources(clients[message.player], players[message.player].resources);
+				sendResources(clients[turn], players[turn]);
+				sendResources(clients[message.player], players[message.player]);
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({ message: "endTrade" }));
 				});
@@ -153,14 +156,15 @@ wss.on("connection", function (ws) {
 				turn = (turn + 1) % clients.length;
 
 				let dice = Math.floor(Math.random() * 6 + 1) + Math.floor(Math.random() * 6 + 1);
-				if (dice == 7) {
-					console.log("thief!!!!");
-					break; // TODO: Handle thief and discard
-				}
-
+				
+				// Assign resources
 				for (let [tx, ty] of board.hit[dice]) {
 					let terrain = board.tiles[ty][tx];
 					for (let [vx, vy, vd] of board.cornerVertices(tx, ty)) {
+						// If robber in space, don't assign resources
+						if (board.robber[0] == vx && board.robber[1] == vy) {
+							continue;
+						}
 						let building = board.buildings[vy][vx][vd];
 						if (building) {
 							let amount;
@@ -174,14 +178,19 @@ wss.on("connection", function (ws) {
 					}
 				}
 
+				
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
 						message: "turn", player: turn, dice: dice,
-						pieces: players[player].pieces,
-						cards: players[player].cards,
 					}));
-					sendResources(ws, players[player].resources);
+					sendResources(ws, players[player]);
 				});
+				
+				
+				if (dice == 7) {
+					handleRobber(turn);
+					
+				}
 				
 				break;
 			}
@@ -191,11 +200,24 @@ wss.on("connection", function (ws) {
 		});
 	});
 	
-	function sendResources(ws, resources) {
-		ws.send(JSON.stringify({ message: "resources", resources: resources }));
+	function sendResources(ws, player) {
+		ws.send(JSON.stringify({
+			message: "resources", 
+			resources: player.resources, 
+			pieces: player.pieces, 
+			cards: player.cards
+			}));
 	}
 
 	function sendError(ws, message) {
 		ws.send(JSON.stringify({ message: "error", error: message }));
+	}
+	
+	function handleRobber(curPlayer) {
+		
+	}
+	
+	function moveRobber() {
+		
 	}
 });
