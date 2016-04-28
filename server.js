@@ -112,11 +112,11 @@ wss.on("connection", function (ws) {
 						let targets = [];
 						for (let [vx, vy, vd] of board.cornerVertices(message.x, message.y)) {
 							
-							let building = board.buildings[vy][vx][vd];
-							if (building && building !== player) {
+							let building = board.buildings[vy][vx][vd];							
+							if (building && building.player !== player) {
 								let resourceSum = 0;
-								let playerResources = players[building].resources;
-								for (resourceType in playerResources) {
+								let playerResources = players[building.player].resources;
+								for (let resourceType in playerResources) {
 									resourceSum += playerResources[resourceType];
 								}
 								if (resourceSum > 0) {
