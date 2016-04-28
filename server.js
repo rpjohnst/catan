@@ -270,6 +270,8 @@ wss.on("connection", function (ws) {
 
 				let dice = Math.floor(Math.random() * 6 + 1) + Math.floor(Math.random() * 6 + 1);
 				
+				console.log("Dice Roll: " + dice);
+				
 				// Assign resources
 				for (let [tx, ty] of board.hit[dice]) {
 					let terrain = board.tiles[ty][tx];
