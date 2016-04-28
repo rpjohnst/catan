@@ -337,14 +337,14 @@ class Play {
 		// draw "under construction" items
 		if(currentState.action == "buildTown")
 		{
-					if(currentState.board.validTown(mvx, mvy, mvd, currentState.player))
-					{
-					let [px, py] = vertexToPixels(mvx, mvy, mvd);
-					let image = (currentState.action == "buildTown")? this.assets.towns[currentState.player]: this.assets.cities[currentState.player];
-					ctx.globalAlpha = 0.5;
-					ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
-					ctx.globalAlpha = 1.0;
-					}
+			if(currentState.board.validTown(mvx, mvy, mvd, currentState.player))
+			{
+				let [px, py] = vertexToPixels(mvx, mvy, mvd);
+				let image = (currentState.action == "buildTown")? this.assets.towns[currentState.player]: this.assets.cities[currentState.player];
+				ctx.globalAlpha = 0.5;
+				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
+				ctx.globalAlpha = 1.0;
+			}
 		}
 		
 		if(currentState.action == "buildCity")
@@ -356,28 +356,28 @@ class Play {
 					ctx.globalAlpha = 0.5;
 					ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 					ctx.globalAlpha = 1.0;
-				}
+			}
 		}
 		
 		if(currentState.action == "buildRoad")
 		{
-				if(currentState.board.validRoad(mex, mey, med, currentState.player, false))
-				{
-					let [[x1, y1, d1], [x2, y2, d2]] = this.board.endpointVertices(mex, mey, med);
-					let [px1, py1] = vertexToPixels(x1, y1, d1);
-					let [px2, py2] = vertexToPixels(x2, y2, d2);
+			if(currentState.board.validRoad(mex, mey, med, currentState.player, false))
+			{
+				let [[x1, y1, d1], [x2, y2, d2]] = this.board.endpointVertices(mex, mey, med);
+				let [px1, py1] = vertexToPixels(x1, y1, d1);
+				let [px2, py2] = vertexToPixels(x2, y2, d2);
 
-					ctx.strokeStyle = playerColors[currentState.player]; ctx.lineWidth = 4;
-					ctx.globalAlpha = 0.5;
-					ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
-					ctx.globalAlpha = 1.0;
-				}
+				ctx.strokeStyle = playerColors[currentState.player]; ctx.lineWidth = 4;
+				ctx.globalAlpha = 0.5;
+				ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
+				ctx.globalAlpha = 1.0;
+			}
 		}
 
-		// draw theif
+		// draw thief
 		{
 			let image = this.assets.pawn;
-			let [px, py] = tileToPixels(this.board.theif[0], this.board.theif[1]);
+			let [px, py] = tileToPixels(this.board.thief[0], this.board.thief[1]);
 			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 		}
 
@@ -475,6 +475,12 @@ canvas.width = 1050;
 canvas.height = 525;
 document.body.appendChild(canvas);
 
+let restoreDefaultButtons = function(){
+	document.getElementById("buildRoad").innerHTML = "Build Road";
+	document.getElementById("buildTown").innerHTML = "Build Town";
+	document.getElementById("buildCity").innerHTML = "Build City";
+}
+
 canvas.addEventListener("mousemove", function (event) {
 	let rect = canvas.getBoundingClientRect();
 	currentState.mouseX = event.clientX - rect.left;
@@ -490,29 +496,34 @@ canvas.addEventListener("click", function (event) {
 		case "buildCity": currentState.build(Catan.CITY, +form.x.value, +form.y.value, +form.d.value); break;
 		default: return;
 	}
+	
 	delete currentState.action;
+	restoreDefaultButtons();
+	
 	event.preventDefault();
 });
 
-// TODO: replace this with proper turn handling in the state class
 let form = document.forms.coordinates;
 
-form.buildRoad.addEventListener("click", function (event) {
-	currentState.action = "buildRoad";
-	event.preventDefault();
-});
-
-form.buildTown.addEventListener("click", function (event) {
-	currentState.action = "buildTown";
-	event.preventDefault();
-});
-
-form.buildCity.addEventListener("click", function (event) {
-	currentState.action = "buildCity";
-	event.preventDefault();
-});
+let buildIds = ["buildRoad", "buildTown", "buildCity"];
+for(let id of buildIds){
+	document.getElementById(id).addEventListener("click", function (event) {
+		restoreDefaultButtons();
+		if(currentState.action == id)
+			delete currentState.action;
+		else {
+			currentState.action = id;
+			document.getElementById(id).innerHTML = "Cancel";
+		}
+		event.preventDefault();
+	});
+}
 
 form.endTurn.addEventListener("click", function (event) {
+	if(currentState.action){
+		delete currentState.action;
+		restoreDefaultButtons();
+	}
 	currentState.endTurn();
 	event.preventDefault();
 });
@@ -536,7 +547,7 @@ form.endTurn.addEventListener("click", function (event) {
 	});
 	
 	[
-		tradingForm.accept0, tradingForm.accept1, tradingForm.accept2, tradingForm.accept3 
+		tradingForm.accept0, tradingForm.accept1, tradingForm.accept2, tradingForm.accept3
 	].forEach(function (button, i) {
 		button.addEventListener("click", function (event) {
 			currentState.confirmTrade(i);

@@ -39,7 +39,7 @@ class Catan {
 			if (!this.hit[chit]) { this.hit[chit] = []; }
 			this.hit[chit].push([x, y]);
 
-			if (terrain == Catan.NONE) { this.theif = [x, y]; }
+			if (terrain == Catan.NONE) { this.thief = [x, y]; }
 		}
 
 		// add ground tiles
