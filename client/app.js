@@ -170,12 +170,22 @@ class Play {
 				this.board.robber = [message.x, message.y];
 				if(currentState.action == "moveRobber")
 					delete currentState.action;
-				if(message.targets){
+				if(message.targets && message.targets.length > 0){
 					this.state = "stealing";
 								
 					// Add UI element to select player with event to send steal message
 					for(target in message.targets){
-						debugger;
+						//debugger;						
+						var button = document.createElement("button")
+						button.innerHTML = "" + target;
+						button.classList.add("steal-btn");
+						button.addEventListener("click", function (event) {
+							this.ws.send(JSON.stringify({ message: "steal", player:target }));
+							for(removeMe in document.querySelectorAll(".steal-btn")){
+								document.forms.building.removeChild(removeMe);
+							}
+						});
+						document.forms.building.appendChild(button);
 					}
 				}
 				
