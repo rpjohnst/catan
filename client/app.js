@@ -171,24 +171,27 @@ class Play {
 					delete currentState.action;
 				if(message.targets && message.targets.length > 0){
 					this.action = "stealing";
-								
+
 					// Add UI element to select player with event to send steal message
-					for(target in message.targets){
-						//debugger;						
+					for(let i=0; i < message.targets.length; i++){
+						let target = message.targets[i];
 						var button = document.createElement("button")
 						button.innerHTML = "" + target;
 						button.classList.add("steal-btn");
-						button.addEventListener("click", function (event) {
+						button.addEventListener("click", function (event) {							
 							this.ws.send(JSON.stringify({ message: "steal", player:target }));
 							for(removeMe in document.querySelectorAll(".steal-btn")){
 								document.forms.building.removeChild(removeMe);
 							}
 							if(this.action == "stealing")
 								delete this.action;
-						});
+							
+							event.preventDefault();
+						}.bind(this));
 						document.forms.building.appendChild(button);
 					}
 				}
+				break;
 				
 			case "endTrade":
 				this.tradingOngoing = false;

@@ -120,6 +120,7 @@ wss.on("connection", function (ws) {
 									resourceSum += playerResources[resourceType];
 								}
 								if (resourceSum > 0) {
+									console.log("adding target: " + building.player);
 									targets.push(building.player);
 								}
 							}
