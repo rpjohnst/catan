@@ -120,7 +120,7 @@ wss.on("connection", function (ws) {
 									resourceSum += playerResources[resourceType];
 								}
 								if (resourceSum > 0) {
-									targets.push(building);
+									targets.push(building.player);
 								}
 							}
 						}
@@ -162,7 +162,7 @@ wss.on("connection", function (ws) {
 					
 					let allResources = [];
 					let playerResources = players[message.player].resources;
-					for (resourceType in playerResources) {
+					for (let resourceType in playerResources) {
 						for (let i = 0; i < playerResources[resourceType]; i++) {
 							allResources.push(resourceType);
 						}
@@ -182,7 +182,8 @@ wss.on("connection", function (ws) {
 				for (let player in resourcesToDiscard) {
 					toDiscard += resourcesToDiscard[player]
 				}
-				if (toDiscard === 0 && robberMoved && resourceStolen) {
+				// TODO: re-add discard check
+				if (robberMoved && resourceStolen) {
 					handlingRobber = false;
 				}
 				
@@ -270,6 +271,8 @@ wss.on("connection", function (ws) {
 
 				let dice = Math.floor(Math.random() * 6 + 1) + Math.floor(Math.random() * 6 + 1);
 				
+				// TODO: remove this
+				dice = 7;
 				console.log("Dice Roll: " + dice);
 				
 				// Assign resources
