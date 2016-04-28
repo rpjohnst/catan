@@ -130,8 +130,7 @@ class Play {
 			switch (message.message) {
 			case "turn":
 				this.turn = message.player;
-				this.dice = message.dice;
-				this.dice = 7;
+				this.dice = message.dice;				
 				if(this.dice == 7 && message.player == this.player){
 					this.action = "moveRobber";					
 				}
@@ -168,10 +167,10 @@ class Play {
 			
 			case "robberGood":
 				this.board.robber = [message.x, message.y];
-				if(currentState.action == "moveRobber")
+				if(this.action == "moveRobber")
 					delete currentState.action;
 				if(message.targets && message.targets.length > 0){
-					this.state = "stealing";
+					this.action = "stealing";
 								
 					// Add UI element to select player with event to send steal message
 					for(target in message.targets){
@@ -184,6 +183,8 @@ class Play {
 							for(removeMe in document.querySelectorAll(".steal-btn")){
 								document.forms.building.removeChild(removeMe);
 							}
+							if(this.action == "stealing")
+								delete this.action;
 						});
 						document.forms.building.appendChild(button);
 					}
@@ -566,7 +567,7 @@ canvas.addEventListener("click", function (event) {
 let buildIds = ["buildRoad", "buildTown", "buildCity"];
 for(let id of buildIds){
 	document.getElementById(id).addEventListener("click", function (event) {
-		if(currentState.action == "moveRobber")
+		if(currentState.action == "moveRobber" || currentState.action == "stealing")
 			return;
 		restoreDefaultButtons();
 		if(currentState.action == id)
@@ -580,7 +581,7 @@ for(let id of buildIds){
 }
 
 document.getElementById("endTurn").addEventListener("click", function (event) {
-	if(currentState.action == "moveRobber")
+	if(currentState.action == "moveRobber" || currentState.action == "stealing")
 		return;
 	
 	if(currentState.action){
