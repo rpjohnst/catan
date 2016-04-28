@@ -326,10 +326,10 @@ class Play {
 			}
 		}
 
-		document.forms.coordinates.x.value = mvx;
-		document.forms.coordinates.y.value = mvy;
-		document.forms.coordinates.d.value = mvd;
-
+		currentState.lvx = mvx;
+		currentState.lvy = mvy;
+		currentState.lvd = mvd;
+		
 		currentState.lex = mex;
 		currentState.ley = mey;
 		currentState.led = med;
@@ -491,9 +491,9 @@ canvas.addEventListener("click", function (event) {
 	if(!currentState.action) return;
 	
 	switch(currentState.action){
-		case "buildTown": currentState.build(Catan.TOWN, +form.x.value, +form.y.value, +form.d.value); break;
+		case "buildTown": currentState.build(Catan.TOWN, currentState.lvx, currentState.lvy, currentState.lvd); break;
 		case "buildRoad": currentState.build(Catan.ROAD, currentState.lex, currentState.ley, currentState.led); break;
-		case "buildCity": currentState.build(Catan.CITY, +form.x.value, +form.y.value, +form.d.value); break;
+		case "buildCity": currentState.build(Catan.CITY, currentState.lvx, currentState.lvy, currentState.lvd); break;
 		default: return;
 	}
 	
@@ -502,8 +502,6 @@ canvas.addEventListener("click", function (event) {
 	
 	event.preventDefault();
 });
-
-let form = document.forms.coordinates;
 
 let buildIds = ["buildRoad", "buildTown", "buildCity"];
 for(let id of buildIds){
@@ -519,7 +517,7 @@ for(let id of buildIds){
 	});
 }
 
-form.endTurn.addEventListener("click", function (event) {
+document.getElementById("endTurn").addEventListener("click", function (event) {
 	if(currentState.action){
 		delete currentState.action;
 		restoreDefaultButtons();
