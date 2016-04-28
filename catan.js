@@ -24,6 +24,8 @@ class Catan {
 		}
 
 		this.hit = [];
+		// No tiles are hit if we roll a 7
+		this.hit[7] = [];
 
 		const cx = 3, cy = 3, N = 2;
 		const directions = [[0, 1], [1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1]];
