@@ -121,6 +121,11 @@ class Play {
 		this.ws.onmessage = (event) => {
 			console.log(event.data);
 
+			// Regardless of the incoming message, the pending city's status is confirmed
+			// Allow draw function to display the old town (error) or new city (verified)
+			if(this.pendingCity)
+				delete this.pendingCity;
+			
 			let message = JSON.parse(event.data);
 			switch (message.message) {
 			case "turn":
@@ -158,7 +163,7 @@ class Play {
 				break;
 
 			case "build":
-				this.board.build(message.type, message.x, message.y, message.d, message.player);
+				this.board.build(message.type, message.x, message.y, message.d, message.player);				
 				break;
 				
 			case "offerTrade":
@@ -275,6 +280,7 @@ class Play {
 		// draw tiles, roads, and buildings
 		let cx = 3, cy = 3, N = 3;
 
+		// draw tiles
 		forEachTile(cx, cy, N, (x, y) => {
 			let [px, py] = tileToPixels(x, y);
 
@@ -283,6 +289,7 @@ class Play {
 			ctx.drawImage(image, px - width / 2, py - height / 2, width, height);
 		});
 
+		// draw roads
 		forEachTile(cx, cy, N, (x, y) => {
 			for (let d = 0; d < 3; d++) {
 				let road = this.board.roads[y][x][d];
@@ -301,10 +308,55 @@ class Play {
 			}
 		});
 
+		// draw "under construction" items
+		{
+			let drawGhost = function(validityCheck, x, y, d){
+				if(validityCheck(x, y, d, currentState.player)){
+					let [px, py] = vertexToPixels(x, y, d);
+					ctx.globalAlpha = 0.5;
+					let image = (currentState.action == "buildTown")? this.assets.towns[currentState.player]: this.assets.cities[currentState.player];
+					ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
+					ctx.globalAlpha = 1.0;
+				}
+			};
+			
+			if(currentState.action == "buildTown")
+				drawGhost.call(this, currentState.board.validTown.bind(currentState.board), mvx, mvy, mvd);
+			
+			if(currentState.action == "buildCity")
+				drawGhost.call(this, currentState.board.validCity.bind(currentState.board), mvx, mvy, mvd);
+			
+			if(currentState.action == "buildRoad")
+			{
+				if(currentState.board.validRoad(mex, mey, med, currentState.player, false))
+				{
+					let [[x1, y1, d1], [x2, y2, d2]] = this.board.endpointVertices(mex, mey, med);
+					let [px1, py1] = vertexToPixels(x1, y1, d1);
+					let [px2, py2] = vertexToPixels(x2, y2, d2);
+
+					ctx.strokeStyle = playerColors[currentState.player]; ctx.lineWidth = 4;
+					ctx.globalAlpha = 0.5;
+					ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
+					ctx.globalAlpha = 1.0;
+				}
+			}
+		}
+		
+		// draw buildings
 		forEachTile(cx, cy, N, (x, y) => {
 			for (let d = 0; d < 2; d++) {
 				let building = this.board.buildings[y][x][d];
-				if (!building) { continue; }
+				let pending = currentState.pendingCity;
+				
+				/* Don't display the building if:
+					1) There is not building at this tile
+					2) A city is being placed
+					3) A city is being confirmed by the server
+				*/
+				if (!building || 
+					  (currentState.action == "buildCity" && x == mvx && y == mvy && d == mvd) ||
+						(pending && pending.x == x && pending.y == y && pending.d == d)							
+						) { continue; }
 
 				let [px, py] = vertexToPixels(x, y, d);
 				let image;
@@ -325,55 +377,11 @@ class Play {
 				}
 			}
 		}
-
-		currentState.lvx = mvx;
-		currentState.lvy = mvy;
-		currentState.lvd = mvd;
 		
-		currentState.lex = mex;
-		currentState.ley = mey;
-		currentState.led = med;
-
-		// draw "under construction" items
-		if(currentState.action == "buildTown")
-		{
-			if(currentState.board.validTown(mvx, mvy, mvd, currentState.player))
-			{
-				let [px, py] = vertexToPixels(mvx, mvy, mvd);
-				let image = (currentState.action == "buildTown")? this.assets.towns[currentState.player]: this.assets.cities[currentState.player];
-				ctx.globalAlpha = 0.5;
-				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
-				ctx.globalAlpha = 1.0;
-			}
-		}
+		// Store vertex and edge coordinates in current state (should decouple from rendering?)
+		currentState.lvx = mvx; currentState.lvy = mvy; currentState.lvd = mvd;
+		currentState.lex = mex; currentState.ley = mey; currentState.led = med;
 		
-		if(currentState.action == "buildCity")
-		{
-			if(currentState.board.validCity(mvx, mvy, mvd, currentState.player))
-			{
-					let [px, py] = vertexToPixels(mvx, mvy, mvd);
-					let image = (currentState.action == "buildTown")? this.assets.towns[currentState.player]: this.assets.cities[currentState.player];
-					ctx.globalAlpha = 0.5;
-					ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
-					ctx.globalAlpha = 1.0;
-			}
-		}
-		
-		if(currentState.action == "buildRoad")
-		{
-			if(currentState.board.validRoad(mex, mey, med, currentState.player, false))
-			{
-				let [[x1, y1, d1], [x2, y2, d2]] = this.board.endpointVertices(mex, mey, med);
-				let [px1, py1] = vertexToPixels(x1, y1, d1);
-				let [px2, py2] = vertexToPixels(x2, y2, d2);
-
-				ctx.strokeStyle = playerColors[currentState.player]; ctx.lineWidth = 4;
-				ctx.globalAlpha = 0.5;
-				ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
-				ctx.globalAlpha = 1.0;
-			}
-		}
-
 		// draw thief
 		{
 			let image = this.assets.pawn;
@@ -495,6 +503,11 @@ canvas.addEventListener("click", function (event) {
 		case "buildRoad": currentState.build(Catan.ROAD, currentState.lex, currentState.ley, currentState.led); break;
 		case "buildCity": currentState.build(Catan.CITY, currentState.lvx, currentState.lvy, currentState.lvd); break;
 		default: return;
+	}
+	
+	// Save pending city so the town does not blink into place before the server confirms the city is valid
+	if(currentState.action == "buildCity"){
+		currentState.pendingCity = {x:currentState.lvx, y:currentState.lvy, d:currentState.lvd};
 	}
 	
 	delete currentState.action;
