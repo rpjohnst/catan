@@ -57,6 +57,9 @@ wss.on("connection", function (ws) {
 	let tradingOffers = [];
 	
 	let handlingRobber = false;
+	let robberMoved = false;
+	let resourceStolen = false;
+	let resourcesToDiscard = [];
 
 	clients.forEach(function(ws, player) {
 		ws.removeAllListeners("close");
@@ -73,10 +76,120 @@ wss.on("connection", function (ws) {
 
 
 			let message = JSON.parse(messageJson);
-			if (player != turn && !(tradingOngoing && message.message == "offerTrade")) {
+			
+			
+			if (player != turn && !(tradingOngoing && message.message === "offerTrade") && !(handlingRobber && message.message === "discardResources")) {
 				sendError(ws, "turn");
 				return;
 			}
+			
+			// Handling robber mode
+			if (handlingRobber) {
+				switch (message.message) {
+				default:
+					sendError(ws, "message");
+					break;
+				
+				case "discardResources":
+					for (let resourceType in message.resources) {
+						resourcesToDiscard[player] -= message.resources[resourceType];
+						players[player].resources[resourceType] -= message.resources[resourceType];
+					}
+					sendResources(ws, players[player]);
+					break;
+				
+				case "moveRobber":
+					if (robberMoved || !board.tiles[message.y] || !board.tiles[message.y][message.x]) {
+						sendError(ws, "moveRobber");
+						break;
+					}
+					
+					let terrain = board.tiles[message.y][message.x];
+					if (terrain !== Catan.OCEAN) {
+						board.robber[0] = message.x;
+						board.robber[1] = message.y;
+						
+						let targets = [];
+						for (let [vx, vy, vd] of board.cornerVertices(message.x, message.y)) {
+							
+							let building = board.buildings[vy][vx][vd];
+							if (building && building !== player) {
+								let resourceSum = 0;
+								let playerResources = players[building].resources;
+								for (resourceType in playerResources) {
+									resourceSum += playerResources[resourceType];
+								}
+								if (resourceSum > 0) {
+									targets.push(building);
+								}
+							}
+						}
+						
+						
+						let stealingPlayer = player;
+						clients.forEach(function (ws, player) {
+							if (player === stealingPlayer) {
+								ws.send(JSON.stringify({
+									message: "robberGood", 
+									x: message.x, 
+									y: message.y,
+									targets: targets
+								}));
+							}
+							ws.send(JSON.stringify({
+								message: "robberGood", 
+								x: message.x, 
+								y: message.y,
+							}));
+						});
+						
+						// If there is no one to steal from, assume stealing has already been completed.
+						if (targets.length == 0) {
+							resourceStolen = true;
+						}
+						
+					} else {
+						sendError(ws, "moveRobber");
+					}
+					
+					break;
+					
+				case "steal":
+					if (resourceStolen) {
+						sendError(ws, "steal");
+						break;
+					}
+					
+					let allResources = [];
+					let playerResources = players[message.player].resources;
+					for (resourceType in playerResources) {
+						for (let i = 0; i < playerResources[resourceType]; i++) {
+							allResources.push(resourceType);
+						}
+					}
+					// Choose a random resource to steal
+					let chosenIndex = Math.floor(Math.random() * allResources.length);
+					let chosenResource = allResources[chosenIndex];
+					players[player].resources[chosenResource]++;
+					players[message.player].resources[chosenResource]--;
+					// Update resource counts
+					sendResources(ws, players[player]);
+					sendResources(clients[message.player], players[message.player]);
+				}
+				
+				// Check if we're done with "robber mode"
+				let toDiscard = 0;
+				for (let player in resourcesToDiscard) {
+					toDiscard += resourcesToDiscard[player]
+				}
+				if (toDiscard === 0 && robberMoved && resourceStolen) {
+					handlingRobber = false;
+				}
+				
+				return;
+			}
+			
+			// Normal operation
 			switch (message.message) {
 			default:
 				sendError(ws, "message");
@@ -214,10 +327,24 @@ wss.on("connection", function (ws) {
 	}
 	
 	function handleRobber(curPlayer) {
-		
+		handlingRobber = true;
+		robberMoved = false;
+		resourceStolen = false;
+		resourcesToDiscard = [];
+		for (let player in players) {
+			let resourceSum = 0;
+			let playerResources = players[player].resources;
+			for (let resource in playerResources) {
+				resourceSum += playerResources[resource];
+			}
+			if (resourceSum > 7) {
+				resourcesToDiscard[player] = Math.floor(resourceSum / 2);
+			}
+		}
 	}
 	
 	function moveRobber() {
 		
 	}
+	
 });
