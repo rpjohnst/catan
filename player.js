@@ -20,11 +20,11 @@ class Player{
 
 		// hand
 		this.resources = {
-			[Catan.ORE]: 0,
-			[Catan.WOOD]: 0,
-			[Catan.WOOL]: 0,
-			[Catan.GRAIN]: 0,
-			[Catan.BRICK]: 0,
+			[Catan.ORE]: 10,
+			[Catan.WOOD]: 10,
+			[Catan.WOOL]: 10,
+			[Catan.GRAIN]: 10,
+			[Catan.BRICK]: 10,
 		};
 		this.cards = {
 			[Catan.KNIGHT]: 0,
@@ -57,12 +57,12 @@ class Player{
 		}
 
 		let costs = COST[type];
-		return hasResources(costs);
+		return this.hasResources(costs);
 	}
 	
 	build(type) {
 		let costs = COST[type];
-		spendResources(costs);
+		this.spendResources(costs);
 	}
 };
 
