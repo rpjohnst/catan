@@ -131,6 +131,10 @@ class Play {
 			case "turn":
 				this.turn = message.player;
 				this.dice = message.dice;
+				this.dice = 7;
+				if(this.dice == 7 && message.player == this.player){
+					this.action = "moveRobber";					
+				}
 				break;
 				
 			case "resources":
@@ -161,6 +165,19 @@ class Play {
 				this.tradingOngoing = true;
 				this.tradingOffers[message.player] = message.offer;
 				break;
+			
+			case "robberGood":
+				this.board.robber = [message.x, message.y];
+				if(currentState.action == "moveRobber")
+					delete currentState.action;
+				if(message.targets){
+					this.state = "stealing";
+								
+					// Add UI element to select player with event to send steal message
+					for(target in message.targets){
+						debugger;
+					}
+				}
 				
 			case "endTrade":
 				this.tradingOngoing = false;
@@ -372,8 +389,20 @@ class Play {
 		// Store vertex and edge coordinates in current state (should decouple from rendering?)
 		currentState.lvx = mvx; currentState.lvy = mvy; currentState.lvd = mvd;
 		currentState.lex = mex; currentState.ley = mey; currentState.led = med;
+		currentState.lmx = mx; currentState.lmy = my;
 		
 		// draw robber
+		if(this.action == "moveRobber")
+		{
+			let image = this.assets.pawn;
+			let [px, py] = tileToPixels(mx, my);
+			if(currentState.board.tiles[my] && currentState.board.tiles[my][mx] && currentState.board.tiles[my][mx] != Catan.OCEAN){
+				ctx.globalAlpha = 0.5;
+				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
+				ctx.globalAlpha = 1.0;
+			}
+		}
+		else
 		{
 			let image = this.assets.pawn;
 			let [px, py] = tileToPixels(this.board.robber[0], this.board.robber[1]);
@@ -436,6 +465,10 @@ class Play {
 				ctx.fillText(offerText.join(", "), tx, ty + 16);
 			}
 		}
+	}
+	
+	moveRobber(x, y) {
+		this.ws.send(JSON.stringify({ message: "moveRobber", x: x, y: y }));
 	}
 
 	build(type, x, y, d) {
@@ -504,6 +537,7 @@ canvas.addEventListener("click", function (event) {
 		case "buildTown": currentState.build(Catan.TOWN, currentState.lvx, currentState.lvy, currentState.lvd); break;
 		case "buildRoad": currentState.build(Catan.ROAD, currentState.lex, currentState.ley, currentState.led); break;
 		case "buildCity": currentState.build(Catan.CITY, currentState.lvx, currentState.lvy, currentState.lvd); break;
+		case "moveRobber": currentState.moveRobber(currentState.lmx, currentState.lmy); break;
 		default: return;
 	}
 	
@@ -512,7 +546,8 @@ canvas.addEventListener("click", function (event) {
 		currentState.pendingCity = {x:currentState.lvx, y:currentState.lvy, d:currentState.lvd};
 	}
 	
-	delete currentState.action;
+	if(currentState.action != "moveRobber")
+		delete currentState.action;
 	restoreDefaultButtons();
 	
 	event.preventDefault();
@@ -521,6 +556,8 @@ canvas.addEventListener("click", function (event) {
 let buildIds = ["buildRoad", "buildTown", "buildCity"];
 for(let id of buildIds){
 	document.getElementById(id).addEventListener("click", function (event) {
+		if(currentState.action == "moveRobber")
+			return;
 		restoreDefaultButtons();
 		if(currentState.action == id)
 			delete currentState.action;
@@ -533,6 +570,9 @@ for(let id of buildIds){
 }
 
 document.getElementById("endTurn").addEventListener("click", function (event) {
+	if(currentState.action == "moveRobber")
+		return;
+	
 	if(currentState.action){
 		delete currentState.action;
 		restoreDefaultButtons();
