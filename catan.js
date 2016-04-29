@@ -87,10 +87,25 @@ class Catan {
 		// can't occupy spot of existing road
 		if (this.roads[y][x][d] != null) { return false; }
 
+		let touches = false;
 		let valid = false;
 		for (let [ex, ey, ed] of this.endpointVertices(x, y, d)) {
 			if(!this.buildings[ey] || !this.buildings[ey][ex]) continue;
+			
+			// Ensure there isn't an endpoint surrounded entirely by ocean			
+			let land = false;
+			for(let [tx, ty] of this.touchesTiles(ex, ey, ed)){
+				if(this.tiles[ty] != undefined && this.tiles[ty][tx] != undefined
+					&& this.tiles[ty][tx] != Catan.OCEAN)
+					land = true;
+			}
+			if(!land) return false;
+			
 			if (this.buildings[ey][ex][ed] && this.buildings[ey][ex][ed].player == player) {
+				if(pregame && this.mustTouch) {
+					touches = touches || (this.mustTouch.y == ey && this.mustTouch.x == ex && this.mustTouch.d == ed );
+					if(!touches) { continue; }
+				}
 				valid = true;
 			} else if (!pregame) {
 				for (let [px, py, pd] of this.protrudeEdges(ex, ey, ed)) {
@@ -99,6 +114,7 @@ class Catan {
 				}
 			}
 		}
+		
 
 		return valid;
 	}
@@ -107,7 +123,7 @@ class Catan {
 	buildRoad(x, y, d, player, pregame) {
 		let valid = this.validRoad(x, y, d, player, pregame);
 		if (!valid) { return false; }
-
+		if(this.mustTouch) { delete this.mustTouch; }
 		this.roads[y][x][d] = player;
 		return true;
 	}
@@ -149,6 +165,7 @@ class Catan {
 	buildTown(x, y, d, player, pregame) {
 		if(!this.validTown(x, y, d, player, pregame)) return false;
 		this.buildings[y][x][d] = { player: player, type: Catan.TOWN };
+		if(pregame) { this.mustTouch = {y:y, x:x, d:d}; }
 		return true;
 	}
 
