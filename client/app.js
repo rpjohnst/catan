@@ -2,6 +2,84 @@
 
 let Catan = require("../catan");
 
+	let radius = 35,
+			hexagon_narrow_width = 3 / 2 * radius,
+			hexagon_height = 2 * radius * Math.sin(Math.PI / 3);
+
+	let tileToPixels = function (x, y) {
+		let width = canvas.width;
+		let height = canvas.height;
+		let xx = x - 3, yy = y - 3;
+		return [
+			width / 4 + hexagon_narrow_width * xx,
+			height / 2 - hexagon_height * (xx / 2 + yy)
+		];
+	};
+
+	let vertexToPixels = function (x, y, d) {
+		let [px, py] = tileToPixels(x, y);
+		if (d == 0) { px -= radius; }
+		else if (d == 1) { px += radius; }
+		return [px, py];
+	};
+
+	let pixelsToTile = function (px, py) {
+		let width = canvas.width;
+		let height = canvas.height;
+		
+		// convert to fractional cube coordinates
+		let x = (px - width / 4) / hexagon_narrow_width,
+			y = (height / 2 - py) / hexagon_height - x / 2,
+			z = -(x + y);
+
+		// round to nearest cube and calculate the difference
+		let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+		let dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+
+		// whichever coordinate moved farthest, push it back into the hex grid plane
+		if (dx > dy && dx > dz) {
+			rx = -(ry + rz);
+		} else if (dy > dz) {
+			ry = -(rx + rz);
+		} else {
+			rz = -(rx + ry);
+		}
+
+		return [rx + 3, ry + 3];
+	};
+
+	let pixelsToVertex = function (px, py) {
+		let [x, y] = pixelsToTile(px, py);
+		let [cx, cy] = tileToPixels(x, y);
+		let angle = Math.atan2(cy - py, px - cx);
+		let hextant = (Math.floor((angle + Math.PI / 6) / 2 / Math.PI * 6) + 6) % 6;
+
+		switch (hextant) {
+		case 0: return [x, y, 1];
+		case 1: return [x + 1, y, 0];
+		case 2: return [x - 1, y + 1, 1];
+		case 3: return [x, y, 0];
+		case 4: return [x - 1, y, 1];
+		case 5: return [x + 1, y - 1, 0];
+		}
+	};
+
+	let pixelsToEdge = function (px, py) {
+		let [x, y] = pixelsToTile(px, py);
+		let [cx, cy] = tileToPixels(x, y);
+		let angle = Math.atan2(cy - py, px - cx);
+		let hextant = (Math.floor(angle / 2 / Math.PI * 6) + 6) % 6;
+
+		switch (hextant) {
+		case 0: return [x, y, 2];
+		case 1: return [x, y, 1];
+		case 2: return [x, y, 0];
+		case 3: return [x - 1, y, 2];
+		case 4: return [x, y - 1, 1];
+		case 5: return [x + 1, y - 1, 0];
+		}
+	};
+
 let currentState;
 let run = function (state) {
 	currentState = state;
@@ -16,6 +94,51 @@ const playerColors = ["#ff0000", "#ffffff", "#0000ff", "#00ff00"];
 
 const server = "ws://" + window.location.hostname + ":8081";
 
+class ResourceSprite {
+	constructor(sx, sy, fx, fy, resource, assets, ctx){
+		
+		switch(resource){
+			case Catan.ORE:		this.image = assets.ore_sm; break;
+			case Catan.WOOD:	this.image = assets.logs_sm; break;
+			case Catan.WOOL:	this.image = assets.wool_sm; break;
+			case Catan.GRAIN:	this.image = assets.grain_sm; break;
+			case Catan.BRICK: this.image = assets.bricks_sm; break;
+		}
+		this.ctx = ctx;
+		this.x = sx; this.fx = fx;
+		this.y = sy; this.fy = fy;
+		this.speed = 1;
+		this.scale = 0.5;
+		this.drawCount = 0;
+	}
+	
+	draw() {
+		let ctx = this.ctx, width = ctx.canvas.clientWidth, height = ctx.canvas.clientHeight;
+		this.drawCount++;
+		
+		ctx.drawImage(this.image, this.x - this.image.width * this.scale / 2, this.y - this.image.height * this.scale / 2, 
+									this.image.width * this.scale, this.image.height * this.scale);
+		
+		let N = 125;
+		if(this.drawCount < N){
+			this.scale = 0.5 + (this.drawCount/N * 0.5);
+			return; // Grow to full size but stay still within first N draw calls
+		}
+		
+		if(this.x > this.fx)
+			this.x -= this.speed;
+		else if(this.x < this.fx)
+			this.x += this.speed;
+		
+		if(this.y > this.fy)
+			this.y -= this.speed;
+		else if(this.y < this.fy)
+			this.y += this.speed;
+	}
+	
+	isDone() { return Math.abs(this.x - this.fx) <= 1 && Math.abs(this.y - this.fy) <= 1; }
+}
+
 class Lobby {
 	constructor(ctx) {
 		this.ctx = ctx;
@@ -24,6 +147,11 @@ class Lobby {
 			hexagon: new Image(), hexagons: [],
 			town: new Image(), city: new Image(), towns: [], cities: [],
 			pawn: new Image(),
+			ore_sm: new Image(),
+			logs_sm: new Image(),
+			grain_sm: new Image(),
+			wool_sm: new Image(),
+			bricks_sm: new Image(),
 		};
 		this.assets.hexagon.addEventListener("load", () => {
 			tileColors.forEach((color, i) => {
@@ -116,6 +244,8 @@ class Play {
 
 		this.pregame = true;
 
+		this.sprites = [];
+		
 		this.tradingOffers = [];
 		this.tradingOngoing = false;
 
@@ -137,12 +267,31 @@ class Play {
 				this.turn = message.player;
 				this.dice = message.dice;				
 				if (message.start) { this.pregame = false; }
-
+				
 				if (this.dice == 7) {
 					if (message.player == this.player) {
 						this.action = "moveRobber";
 					}
+				} else if(this.dice) {
+					
+						let hits = this.board.hit[this.dice];
+						hits.forEach(hit => {
+							if(hit) {
+								let resource = this.board.tiles[hit[1]][hit[0]];
+								let sPosition = tileToPixels(hit[0], hit[1]);
+								let corners = this.board.cornerVertices(hit[0], hit[1]);
+								corners.forEach(corner => {
+									if(this.board.buildings[corner[1]][corner[0]][corner[2]]){
+										let fPosition = vertexToPixels(corner[0], corner[1], corner[2]);
+										this.sprites.push(new ResourceSprite(sPosition[0], sPosition[1], fPosition[0], fPosition[1], resource, this.assets, this.ctx));		
+									}
+									
+								});
+								
+							}
+						});					
 				}
+				
 				break;
 				
 			case "stealGood":
@@ -244,79 +393,6 @@ class Play {
 
 	draw() {
 		let ctx = this.ctx, width = ctx.canvas.clientWidth, height = ctx.canvas.clientHeight;
-
-		let radius = 35,
-			hexagon_narrow_width = 3 / 2 * radius,
-			hexagon_height = 2 * radius * Math.sin(Math.PI / 3);
-
-		let tileToPixels = function (x, y) {
-			let xx = x - 3, yy = y - 3;
-			return [
-				width / 4 + hexagon_narrow_width * xx,
-				height / 2 - hexagon_height * (xx / 2 + yy)
-			];
-		};
-
-		let vertexToPixels = function (x, y, d) {
-			let [px, py] = tileToPixels(x, y);
-			if (d == 0) { px -= radius; }
-			else if (d == 1) { px += radius; }
-			return [px, py];
-		};
-
-		let pixelsToTile = function (px, py) {
-			// convert to fractional cube coordinates
-			let x = (px - width / 4) / hexagon_narrow_width,
-				y = (height / 2 - py) / hexagon_height - x / 2,
-				z = -(x + y);
-
-			// round to nearest cube and calculate the difference
-			let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
-			let dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
-
-			// whichever coordinate moved farthest, push it back into the hex grid plane
-			if (dx > dy && dx > dz) {
-				rx = -(ry + rz);
-			} else if (dy > dz) {
-				ry = -(rx + rz);
-			} else {
-				rz = -(rx + ry);
-			}
-
-			return [rx + 3, ry + 3];
-		};
-
-		let pixelsToVertex = function (px, py) {
-			let [x, y] = pixelsToTile(px, py);
-			let [cx, cy] = tileToPixels(x, y);
-			let angle = Math.atan2(cy - py, px - cx);
-			let hextant = (Math.floor((angle + Math.PI / 6) / 2 / Math.PI * 6) + 6) % 6;
-
-			switch (hextant) {
-			case 0: return [x, y, 1];
-			case 1: return [x + 1, y, 0];
-			case 2: return [x - 1, y + 1, 1];
-			case 3: return [x, y, 0];
-			case 4: return [x - 1, y, 1];
-			case 5: return [x + 1, y - 1, 0];
-			}
-		};
-
-		let pixelsToEdge = function (px, py) {
-			let [x, y] = pixelsToTile(px, py);
-			let [cx, cy] = tileToPixels(x, y);
-			let angle = Math.atan2(cy - py, px - cx);
-			let hextant = (Math.floor(angle / 2 / Math.PI * 6) + 6) % 6;
-
-			switch (hextant) {
-			case 0: return [x, y, 2];
-			case 1: return [x, y, 1];
-			case 2: return [x, y, 0];
-			case 3: return [x - 1, y, 2];
-			case 4: return [x, y - 1, 1];
-			case 5: return [x + 1, y - 1, 0];
-			}
-		};
 
 		ctx.fillStyle = "#000";
 		ctx.fillRect(0, 0, width, height);
@@ -513,6 +589,15 @@ class Play {
 				ctx.fillText(offerText.join(", "), tx, ty + 16);
 			}
 		}
+	
+		for(let i=this.sprites.length-1; i>=0; i--){
+			this.sprites[i].draw();
+			if(this.sprites[i].isDone()){
+				delete this.sprites[i];
+				this.sprites.splice(i, 1);
+			}
+		}
+		
 	}
 
 	moveRobber(x, y) {
