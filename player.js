@@ -20,11 +20,11 @@ class Player{
 
 		// hand
 		this.resources = {
-			[Catan.ORE]: 10,
-			[Catan.WOOD]: 10,
-			[Catan.WOOL]: 10,
-			[Catan.GRAIN]: 10,
-			[Catan.BRICK]: 10,
+			[Catan.ORE]: 0,
+			[Catan.WOOD]: 0,
+			[Catan.WOOL]: 0,
+			[Catan.GRAIN]: 0,
+			[Catan.BRICK]: 0,
 		};
 		this.cards = {
 			[Catan.KNIGHT]: 0,
@@ -34,7 +34,7 @@ class Player{
 			[Catan.ROAD_BUILDING]: 0,
 		};
 	}
-	
+
 	hasResources(resourceSet) {
 		for (let resourceType in resourceSet) {
 			if (this.resources[resourceType] < resourceSet[resourceType]) {
@@ -56,13 +56,11 @@ class Player{
 			return false;
 		}
 
-		let costs = COST[type];
-		return this.hasResources(costs);
+		return this.hasResources(COST[type]);
 	}
-	
+
 	build(type) {
-		let costs = COST[type];
-		this.spendResources(costs);
+		this.spendResources(COST[type]);
 	}
 };
 

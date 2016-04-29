@@ -93,18 +93,18 @@ class Catan {
 			[Catan.CITY]: this.buildCity,
 		}[type].apply(this, [x, y, d, player, pregame]);
 	}
-	
-	validRoad(x, y, d, player, pregame){
+
+	validRoad(x, y, d, player, pregame) {
 		// a road must be placed on an empty edge next to a road or settlement of the same player
 		// during pregame, a road must be next to a settlement of the same player
-		
+
 		if(x < 0 || y < 0 || x > 6 || y > 5){
 			return false;
 		}
-		
+
 		// can't occupy spot of existing road
 		if (this.roads[y][x][d] != null) { return false; }
-		
+
 		let valid = false;
 		for (let [ex, ey, ed] of this.endpointVertices(x, y, d)) {
 			if(!this.buildings[ey] || !this.buildings[ey][ex]) continue;
@@ -117,7 +117,7 @@ class Catan {
 				}
 			}
 		}
-		
+
 		return valid;
 	}
 
@@ -129,10 +129,9 @@ class Catan {
 		this.roads[y][x][d] = player;
 		return true;
 	}
-	
-	validTown(x, y, d, player, pregame) {
 
-		if(!this.buildings[y] || !this.buildings[y][x]) return false;
+	validTown(x, y, d, player, pregame) {
+		if (!this.buildings[y] || !this.buildings[y][x]) { return false; }
 
 		// Ensure that this vertex touches at least one land tile
 		let land = false;
@@ -152,13 +151,13 @@ class Catan {
 		}
 
 		// Once the pregame state ends, a town must touch a road belonging to current player
-		if(!pregame){
+		if (!pregame) {
 			let touches = false;
 			for(let [ex, ey, ed] of this.protrudeEdges(x, y, d)){
 				if(this.roads[ey][ex][ed] == player)
 					touches = true;
 			}
-			if(!touches) return false;
+			if (!touches) { return false; }
 		}
 
 		return true;
@@ -170,7 +169,7 @@ class Catan {
 		this.buildings[y][x][d] = { player: player, type: Catan.TOWN };
 		return true;
 	}
-	
+
 	validCity(x, y, d, player) {
 		// a city must be placed on top of a vertex that contains a town of the same player
 		if(!this.buildings[y] || !this.buildings[y][x] || !this.buildings[y][x][d])

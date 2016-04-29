@@ -35,50 +35,36 @@ wss.on("connection", function (ws) {
 
 	let board = new Catan();
 	let turn = 0;
+	let currentState;
 
-	let players = [];
-	clients.forEach(function (ws, player) {
-		players[player] = new Player();
-	});
+	let players = clients.map((ws) => new Player());
 
 	let close = new EventEmitter();
 	close.once("close", function (skip) {
 		clients.forEach(function (ws, player) {
-			if (player == skip) {
-				return;
-			}
+			if (player == skip) { return; }
 
 			ws.send(JSON.stringify({ message: "end" }));
 			ws.close();
 		});
 	});
-	
-	let tradingOngoing = false;
-	let tradingOffers = [];
-	
-	let handlingRobber = false;
-	let robberMoved = false;
-	let resourceStolen = false;
-	let resourcesToDiscard = [];
 
-	clients.forEach(function(ws, player) {
+	clients.forEach(function (ws, player) {
 		ws.removeAllListeners("close");
-		ws.send(JSON.stringify({ message: "start", board: board, player: player }));
-
-		// TODO: handle pregame
-		ws.send(JSON.stringify({ message: "turn", player: turn }));
-
-		// TODO: Distribute initial resources
-		sendResources(ws, players[player]);
 
 		ws.on("message", function (messageJson) {
 			console.log("received from player %d: %s", player, messageJson);
 
-
 			let message = JSON.parse(messageJson);
-			
-			
-			if (player != turn && !(tradingOngoing && message.message === "offerTrade") && !(handlingRobber && message.message === "discardResources")) {
+			currentState.onmessage(ws, player, message);
+		});
+
+		ws.on("close", function (code, message) {
+			console.log("player %d left", player);
+			close.emit("close", player);
+		});
+	});
+
 				sendError(ws, "turn");
 				return;
 			}
@@ -200,19 +186,27 @@ wss.on("connection", function (ws) {
 					handlingRobber = false;
 				}
 				
+	class Play {
+		onmessage(ws, player, message) {
+			if (player != turn) {
+				sendError(ws, "turn");
 				return;
 			}
-			
-			// Normal operation
+
 			switch (message.message) {
-			default:
-				sendError(ws, "message");
+			default: sendError(ws, "message"); break;
+
+			case "offer":
+				let tradeState = new Trade();
+				if (tradeState.onmessage(ws, player, message)) {
+					currentState = tradeState;
+				}
 				break;
 
 			case "build":
 				if (
-					!players[player].canAfford(message.type) ||
-					!board.build(message.type, message.x, message.y, message.d, player)
+					!players[turn].canAfford(message.type) ||
+					!board.build(message.type, message.x, message.y, message.d, turn)
 				) {
 					sendError(ws, "build");
 					break;
@@ -228,64 +222,13 @@ wss.on("connection", function (ws) {
 					}));
 				});
 				break;
-				
-			case "offerTrade":
-				if (!players[player].hasResources(message.offer)) {
-					sendError(ws, "offer");
-					break;
-				}
-				
-				if (player == turn) {
-					tradingOngoing = true;
-					// TODO: Invalidate trades if offer changed?
-				}
-				
-				tradingOffers[player] = message.offer;
-				let offeringPlayer = player;
-				clients.forEach(function (ws, player) {
-					ws.send(JSON.stringify({
-						message: "offerTrade", offer: message.offer,
-						player: offeringPlayer
-					}));
-				});
-				break;
-				
-			case "confirmTrade":
-				if (!tradingOngoing || message.player == turn) {
-					sendError(ws, "confirm");
-					break;
-				}
-				
-				for (let resourceType in tradingOffers[player]) {
-					players[turn].resources[resourceType] += (tradingOffers[message.player][resourceType] - tradingOffers[turn][resourceType]);
-					players[message.player].resources[resourceType] += (tradingOffers[turn][resourceType] - tradingOffers[message.player][resourceType]);
-				}
-				
-				tradingOngoing = false;
-				tradingOffers = [];
-				
-				sendResources(clients[turn], players[turn]);
-				sendResources(clients[message.player], players[message.player]);
-				clients.forEach(function (ws, player) {
-					ws.send(JSON.stringify({ message: "endTrade" }));
-				});
-				break;
-				
-			case "cancelTrade":
-				tradingOngoing = false;
-				tradingOffers = [];
-				clients.forEach(function (ws, player) {
-					ws.send(JSON.stringify({ message: "endTrade" }));
-				});
-				break;
 
 			case "turn":
 				turn = (turn + 1) % clients.length;
 
-				let dice = Math.floor(Math.random() * 6 + 1) + Math.floor(Math.random() * 6 + 1);				
-				console.log("Dice Roll: " + dice);
-				
-				// Assign resources
+				let dice = rollDie() + rollDie();
+
+				// assign resources
 				for (let [tx, ty] of board.hit[dice]) {
 					let terrain = board.tiles[ty][tx];
 					for (let [vx, vy, vd] of board.cornerVertices(tx, ty)) {
@@ -306,60 +249,217 @@ wss.on("connection", function (ws) {
 					}
 				}
 
-				
 				clients.forEach(function (ws, player) {
-					ws.send(JSON.stringify({
-						message: "turn", player: turn, dice: dice,
-					}));
+					ws.send(JSON.stringify({ message: "turn", player: turn, dice: dice, start: message.start }));
 					sendResources(ws, players[player]);
 				});
-				
-				
+
 				if (dice == 7) {
-					handleRobber(turn);
-					
+					currentState = new Robber();
 				}
-				
 				break;
 			}
-		}).on("close", function (code, message) {
-			console.log("player %d left", player);
-			close.emit("close", player);
-		});
-	});
-	
+		}
+	}
+
+	class Trade {
+		constructor() {
+			this.offers = [];
+		}
+
+		onmessage(ws, player, message) {
+			if (player != turn && message.message != "offer") {
+				sendError(ws, "confirm");
+				return false;
+			}
+
+			switch (message.message) {
+			default: sendError(ws, "message"); break;
+
+			case "offer":
+				if (countResources(offer) == 0 || !players[offeringPlayer].hasResources(offer)) {
+					sendError(ws, "offer");
+					return false;
+				}
+
+				this.offers[offeringPlayer] = offer;
+				clients.forEach(function (ws, player) {
+					ws.send(JSON.stringify({
+						message: "offer", offer: offer, player: offeringPlayer
+					}));
+				});
+				break;
+
+			case "confirm":
+				for (let resourceType in this.offers[player]) {
+					players[turn].resources[resourceType] += (
+						this.offers[message.player][resourceType] - this.offers[turn][resourceType]
+					);
+					players[message.player].resources[resourceType] += (
+						this.offers[turn][resourceType] - this.offers[message.player][resourceType]
+					);
+				}
+
+				sendResources(clients[turn], players[turn]);
+				sendResources(clients[message.player], players[message.player]);
+				clients.forEach(function (ws, player) {
+					ws.send(JSON.stringify({ message: "end" }));
+				});
+
+				currentState = new Play();
+				break;
+
+			case "cancel":
+				clients.forEach(function (ws, player) {
+					ws.send(JSON.stringify({ message: "end" }));
+				});
+
+				currentState = new Play();
+				break;
+			}
+
+			return true;
+		}
+	}
+
+	class Robber {
+		constructor() {
+			this.robberMoved = false;
+			this.resourceStolen = false;
+			this.resourcesToDiscard = [];
+
+			for (let player in players) {
+				if (countResources(players[player].resources) > 7) {
+					this.resourcesToDiscard[player] = Math.floor(resourceSum / 2);
+				}
+			}
+		}
+
+		onmessage(ws, player, message) {
+			if (player != turn && message.message != "discardResources") {
+				sendError(ws, "confirm");
+				return false;
+			}
+
+			switch (message.message) {
+			default: sendError(ws, "message"); break;
+
+			case "discardResources":
+				let discardCount = countResources(message.resources);
+				if (
+					!players[player].hasResources(message.resources) ||
+					discardCount != this.resourcesToDiscard[player]
+				) {
+					sendError(ws, "discardResources");
+					break;
+				}
+
+				this.resourcesToDiscard[player] = 0;
+				players[player].spendResources(message.resources);
+
+				ws.send(JSON.stringify({ message: "discardGood" }));
+				sendResources(ws, players[player]);
+				break;
+
+			case "moveRobber":
+				if (
+					this.robberMoved ||
+					!board.tiles[message.y] || !board.tiles[message.y][message.x] ||
+					board.tiles[message.y][message.x] == Catan.OCEAN
+				) {
+					sendError(ws, "moveRobber");
+					break;
+				}
+
+				this.robberMoved = true;
+				board.robber = [message.x, message.y];
+
+				let targets = [];
+				for (let [vx, vy, vd] of board.cornerVertices(message.x, message.y)) {
+					let building = board.buildings[vy][vx][vd];
+					if (!building || building.player == turn) { continue; }
+
+					if (resourceSum > countResources(players[building.player].resources)) {
+						console.log("adding target: " + building.player);
+						targets.push(building.player);
+					}
+				}
+
+				// If there is no one to steal from, assume stealing has already been completed.
+				if (targets.length == 0) {
+					this.resourceStolen = true;
+				}
+
+				let stealingPlayer = player;
+				clients.forEach(function (ws, player) {
+					let robberGood = { message: "robberGood", x: message.x, y: message.y };
+					if (player == stealingPlayer) { robberGood.targets = targets; }
+
+					ws.send(JSON.stringify(message));
+				});
+				break;
+
+			case "steal":
+				if (this.resourceStolen) {
+					sendError(ws, "steal");
+					break;
+				}
+
+				let allResources = [];
+				let playerResources = players[message.player].resources;
+				for (let resourceType in playerResources) {
+					allResources.push.apply(allResources, repeat(resourceType, playerResources[resourceType]));
+				}
+
+				// Choose a random resource to steal
+				let chosenIndex = Math.floor(Math.random() * allResources.length);
+				let chosenResource = allResources[chosenIndex];
+				players[player].resources[chosenResource]++;
+				players[message.player].resources[chosenResource]--;
+
+				// Update resource counts
+				sendResources(ws, players[player]);
+				sendResources(clients[message.player], players[message.player]);
+
+				this.resourceStolen = true;
+				break;
+			}
+
+			// Check if we're done with "robber mode"
+			let toDiscard = this.resourcesToDiscard.reduce((x, y) => x + y);
+			// TODO: re-add discard check
+			if (toDiscard == 0 && this.robberMoved && this.resourceStolen) {
+				currentState = new Play();
+			}
+
+			return;
+		}
+	}
+
+	currentState = new Play();
+
 	function sendResources(ws, player) {
 		ws.send(JSON.stringify({
-			message: "resources", 
-			resources: player.resources, 
-			pieces: player.pieces, 
-			cards: player.cards
-			}));
+			message: "resources",
+			resources: player.resources,
+			pieces: player.pieces,
+			cards: player.cards,
+		}));
 	}
 
 	function sendError(ws, message) {
 		ws.send(JSON.stringify({ message: "error", error: message }));
 	}
-	
-	function handleRobber(curPlayer) {
-		handlingRobber = true;
-		robberMoved = false;
-		resourceStolen = false;
-		resourcesToDiscard = [];
-		for (let player in players) {
-			let resourceSum = 0;
-			let playerResources = players[player].resources;
-			for (let resource in playerResources) {
-				resourceSum += playerResources[resource];
-			}
-			if (resourceSum > 7) {
-				resourcesToDiscard[player] = Math.floor(resourceSum / 2);
-			}
-		}
-	}
-	
-	function moveRobber() {
-		
-	}
-	
 });
+
+function countResources(hand) {
+	let sum = 0;
+	for (let resourceType in hand) {
+		sum += hand[resourceType];
+	}
+	return sum;
+}
+
+function rollDie() {
+	return Math.floor(Math.random() * 6 + 1);
+}

@@ -100,7 +100,7 @@ class Lobby {
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
 		ctx.fillStyle = "#fff";
-		ctx.fillText("Loading...", width / 2, height / 2);
+		ctx.fillText("Waiting for players...", width / 2, height / 2);
 	}
 }
 
@@ -109,6 +109,7 @@ class Play {
 		this.ctx = ctx;
 		this.assets = assets;
 		this.ws = ws;
+
 		this.board = board;
 		this.player = player;
 		this.turn = turn;
@@ -123,40 +124,40 @@ class Play {
 
 			// Regardless of the incoming message, the pending city's status is confirmed
 			// Allow draw function to display the old town (error) or new city (verified)
-			if(this.pendingCity)
+			if (this.pendingCity) {
 				delete this.pendingCity;
-			
+			}
+
 			let message = JSON.parse(event.data);
 			switch (message.message) {
 			case "turn":
 				this.turn = message.player;
 				this.dice = message.dice;				
-				
-				if(this.dice == 7)
-				{
-					if(message.player == this.player)
+
+				if (this.dice == 7) {
+					if (message.player == this.player) {
 						this.action = "moveRobber";
-					
+					}
+
 					let total = 0;
 					for (let resource in Play.resourceNames) {
 						resource = +resource;
 						total += +document.getElementById(Play.resourceNames[resource]).innerHTML;						
 					}
-					
-					if(total > 7){
-							// Find number to discard
-							let discard = Math.floor(total/2);
 
-							// Update label
-							let cards = (discard > 1)? "Cards": "Card";
-							document.getElementById("discard-amount").innerHTML = "Discard " + discard + " " + cards;
-										
-							showDiscardModal();
+					if (total > 7) {
+						// Find number to discard
+						let discard = Math.floor(total/2);
+
+						// Update label
+						let cards = (discard > 1)? "Cards": "Card";
+						document.getElementById("discard-amount").innerHTML = "Discard " + discard + " " + cards;
+
+						showDiscardModal();
 					}
 				}
-				
 				break;
-				
+
 			case "resources":
 				for (let resource in Play.resourceNames) {
 					resource = +resource;
@@ -180,59 +181,56 @@ class Play {
 			case "build":
 				this.board.build(message.type, message.x, message.y, message.d, message.player);				
 				break;
-				
-			case "offerTrade":
+
+			case "offer":
 				this.tradingOngoing = true;
 				this.tradingOffers[message.player] = message.offer;
 				break;
-				
+
+			case "end":
+				currentState = new Lobby(ctx);
+				break;
+
 			case "discardGood":
 				document.getElementById('discard-modal').style.display = "none";
 				break;
-				
+
+			case "error":
+				if (message.error == "discardResources") {
+					showDiscardModal();
+				}
+				break;
+
 			case "robberGood":
 				this.board.robber = [message.x, message.y];
-				if(this.action == "moveRobber")
+				if (this.action == "moveRobber") {
 					delete currentState.action;
-				if(message.targets && message.targets.length > 0){
+				}
+				if (message.targets && message.targets.length > 0) {
 					this.action = "stealing";
 
 					// Add UI element to select player with event to send steal message
-					for(let i=0; i < message.targets.length; i++){
+					for (let i=0; i < message.targets.length; i++) {
 						let target = message.targets[i];
-						let button = document.createElement("button")
+						let button = document.createElement("button");
 						button.innerHTML = "" + target;
 						button.setAttribute("type", "button");
 						button.classList.add("steal-btn");
-						button.addEventListener("click", function (event) {							
+						button.addEventListener("click", function (event) {
 							this.ws.send(JSON.stringify({ message: "steal", player:target }));
 							let removals = document.querySelectorAll(".steal-btn");
-							for(let j=0; j < removals.length; j++){
+							for (let j=0; j < removals.length; j++) {
 								document.forms.building.removeChild(removals[j]);
 							}
-							if(this.action == "stealing")
+							if (this.action == "stealing") {
 								delete this.action;
-							
+							}
+
 							event.preventDefault();
 						}.bind(this));
 						document.forms.building.appendChild(button);
 					}
 				}
-				break;
-				
-			case "endTrade":
-				this.tradingOngoing = false;
-				this.tradingOffers = [];
-				break;
-			
-			case "error":
-				if(message.error == "discardResources"){
-					showDiscardModal();
-				}
-				break;
-
-			case "end":
-				currentState = new Lobby(ctx);
 				break;
 			}
 		};
@@ -396,22 +394,23 @@ class Play {
 				}
 			}
 		}
-		
+
 		// draw buildings
 		forEachTile(cx, cy, N, (x, y) => {
 			for (let d = 0; d < 2; d++) {
 				let building = this.board.buildings[y][x][d];
 				let pending = currentState.pendingCity;
-				
+
 				/* Don't display the building if:
 					1) There is not building at this tile
 					2) A city is being placed
 					3) A city is being confirmed by the server
 				*/
-				if (!building || 
-					  (currentState.action == "buildCity" && x == mvx && y == mvy && d == mvd) ||
-						(pending && pending.x == x && pending.y == y && pending.d == d)							
-						) { continue; }
+				if (
+					!building ||
+					(this.action == "buildCity" && x == mvx && y == mvy && d == mvd) ||
+					(pending && pending.x == x && pending.y == y && pending.d == d)
+				) { continue; }
 
 				let [px, py] = vertexToPixels(x, y, d);
 				let image;
@@ -432,12 +431,12 @@ class Play {
 				}
 			}
 		}
-		
+
 		// Store vertex and edge coordinates in current state (should decouple from rendering?)
 		currentState.lvx = mvx; currentState.lvy = mvy; currentState.lvd = mvd;
 		currentState.lex = mex; currentState.ley = mey; currentState.led = med;
 		currentState.lmx = mx; currentState.lmy = my;
-		
+
 		// draw numbers
 		this.board.hit.forEach((hit, i) => {
 			if (hit == null || i == 0) { return; }
@@ -463,31 +462,28 @@ class Play {
 				}
 			}
 		});
-		
+
 		// draw robber
-		if(this.action == "moveRobber")
-		{
+		if (this.action == "moveRobber") {
 			let image = this.assets.pawn;
 			let [px, py] = tileToPixels(mx, my);
-			if(currentState.board.tiles[my] && currentState.board.tiles[my][mx] && currentState.board.tiles[my][mx] != Catan.OCEAN){
+			if (currentState.board.tiles[my] && currentState.board.tiles[my][mx] && currentState.board.tiles[my][mx] != Catan.OCEAN) {
 				ctx.globalAlpha = 0.5;
 				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 				ctx.globalAlpha = 1.0;
 			}
-		}
-		else
-		{
+		} else {
 			let image = this.assets.pawn;
 			let [px, py] = tileToPixels(this.board.robber[0], this.board.robber[1]);
 			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 		}
-		
+
 		if (this.tradingOngoing) {
 			ctx.font = "14px sans-serif";
 			ctx.textAlign = "center";
 			ctx.textBaseline = "top";
 			ctx.fillStyle = "0xfff";
-			
+
 			let j = 0;
 			for (let i = 0; i < 4; i++) {
 				let tx, ty;
@@ -499,8 +495,7 @@ class Play {
 					ty = 200;
 					j++;
 				}
-				
-				
+
 				ctx.fillText("Player " + i + " Offers:", tx, ty);
 				let offerText = [];
 				let offer = this.tradingOffers[i];
@@ -513,7 +508,7 @@ class Play {
 			}
 		}
 	}
-	
+
 	moveRobber(x, y) {
 		this.ws.send(JSON.stringify({ message: "moveRobber", x: x, y: y }));
 	}
@@ -521,17 +516,17 @@ class Play {
 	build(type, x, y, d) {
 		this.ws.send(JSON.stringify({ message: "build", type: type, x: x, y: y, d: d }));
 	}
-	
-	offerTrade(offer) {
-		this.ws.send(JSON.stringify({ message: "offerTrade", offer: offer }));
+
+	offer(offer) {
+		this.ws.send(JSON.stringify({ message: "offer", offer: offer }));
 	}
-	
-	confirmTrade(player) {
-		this.ws.send(JSON.stringify({ message: "confirmTrade", player: player }));
+
+	confirm(player) {
+		this.ws.send(JSON.stringify({ message: "confirm", player: player }));
 	}
-	
-	cancelTrade() {
-		this.ws.send(JSON.stringify({ message: "cancelTrade" }));
+
+	cancel() {
+		this.ws.send(JSON.stringify({ message: "cancel" }));
 	}
 
 	endTurn() {
@@ -558,14 +553,12 @@ Play.cardIds = {
 	[Catan.KNIGHT]: "knights",
 };
 
-let catan = new Catan();
-
 let canvas = document.createElement("canvas");
 canvas.width = 1050;
 canvas.height = 525;
 document.body.appendChild(canvas);
 
-let restoreDefaultButtons = function(){
+let restoreDefaultButtons = function () {
 	document.getElementById("buildRoad").innerHTML = "Build Road";
 	document.getElementById("buildTown").innerHTML = "Build Town";
 	document.getElementById("buildCity").innerHTML = "Build City";
@@ -579,48 +572,50 @@ canvas.addEventListener("mousemove", function (event) {
 
 canvas.addEventListener("click", function (event) {
 	event.preventDefault();
-	if(!currentState.action) return;
-	
-	switch(currentState.action){
+	if (!currentState.action) { return; }
+
+	switch(currentState.action) {
 		case "buildTown": currentState.build(Catan.TOWN, currentState.lvx, currentState.lvy, currentState.lvd); break;
 		case "buildRoad": currentState.build(Catan.ROAD, currentState.lex, currentState.ley, currentState.led); break;
 		case "buildCity": currentState.build(Catan.CITY, currentState.lvx, currentState.lvy, currentState.lvd); break;
 		case "moveRobber": currentState.moveRobber(currentState.lmx, currentState.lmy); break;
 		default: return;
 	}
-	
+
 	// Save pending city so the town does not blink into place before the server confirms the city is valid
-	if(currentState.action == "buildCity"){
+	if (currentState.action == "buildCity") {
 		currentState.pendingCity = {x:currentState.lvx, y:currentState.lvy, d:currentState.lvd};
 	}
-	
-	if(currentState.action != "moveRobber")
+
+	if (currentState.action != "moveRobber") {
 		delete currentState.action;
+	}
 	restoreDefaultButtons();	
 });
 
-let buildIds = ["buildRoad", "buildTown", "buildCity"];
-for(let id of buildIds){
+["buildRoad", "buildTown", "buildCity"].forEach(function (id) {
 	document.getElementById(id).addEventListener("click", function (event) {
 		event.preventDefault();
-		if(currentState.action == "moveRobber" || currentState.action == "stealing")
+		if (currentState.action == "moveRobber" || currentState.action == "stealing") {
 			return;
+		}
 		restoreDefaultButtons();
-		if(currentState.action == id)
+		if (currentState.action == id) {
 			delete currentState.action;
-		else {
+		} else {
 			currentState.action = id;
 			document.getElementById(id).innerHTML = "Cancel";
 		}		
 	});
-}
+});
 
 document.getElementById("endTurn").addEventListener("click", function (event) {
 	event.preventDefault();
-	if(currentState.action == "moveRobber" || currentState.action == "stealing")
+	if (currentState.action == "moveRobber" || currentState.action == "stealing") {
 		return;
-	
-	if(currentState.action){
+	}
+
+	if (currentState.action) {
 		delete currentState.action;
 		restoreDefaultButtons();
 	}
@@ -628,28 +623,29 @@ document.getElementById("endTurn").addEventListener("click", function (event) {
 });
 
 {
-	let tradingForm = document.forms.trading;
-	tradingForm.offerTrade.addEventListener("click", function (event) {
-		currentState.offerTrade({
-			[Catan.ORE]: +tradingForm.ore.value,
-			[Catan.WOOD]: +tradingForm.wood.value,
-			[Catan.WOOL]: +tradingForm.wool.value,
-			[Catan.GRAIN]: +tradingForm.grain.value,
-			[Catan.BRICK]: +tradingForm.brick.value,
+	let form = document.forms.trading;
+
+	form.offer.addEventListener("click", function (event) {
+		currentState.offer({
+			[Catan.ORE]: +form.ore.value,
+			[Catan.WOOD]: +form.wood.value,
+			[Catan.WOOL]: +form.wool.value,
+			[Catan.GRAIN]: +form.grain.value,
+			[Catan.BRICK]: +form.brick.value,
 		});
 		event.preventDefault();
 	});
-	
-	tradingForm.cancelTrade.addEventListener("click", function (event) {
-		currentState.cancelTrade();
+
+	form.cancel.addEventListener("click", function (event) {
+		currentState.cancel();
 		event.preventDefault();
 	});
-	
+
 	[
-		tradingForm.accept0, tradingForm.accept1, tradingForm.accept2, tradingForm.accept3
+		form.accept0, form.accept1, form.accept2, form.accept3
 	].forEach(function (button, i) {
 		button.addEventListener("click", function (event) {
-			currentState.confirmTrade(i);
+			currentState.confirm(i);
 			event.preventDefault();
 		});
 	});
@@ -658,7 +654,7 @@ document.getElementById("endTurn").addEventListener("click", function (event) {
 let ctx = canvas.getContext("2d");
 let lobby = new Lobby(ctx);
 
-document.getElementById("discard-btn").addEventListener("click", function(event) {
+document.getElementById("discard-btn").addEventListener("click", function (event) {
 	event.preventDefault();
 	let total = 0;
 	for (let resource in Play.resourceNames) {
@@ -676,7 +672,7 @@ document.getElementById("discard-btn").addEventListener("click", function(event)
 
 	document.forms.discard
 
-	if(discarded == discard){
+	if (discarded == discard) {
 		let resources = {
 			[Catan.ORE]: +document.forms.discard.ore.value,
 			[Catan.WOOD]: +document.forms.discard.wood.value,
@@ -684,16 +680,14 @@ document.getElementById("discard-btn").addEventListener("click", function(event)
 			[Catan.GRAIN]: +document.forms.discard.grain.value,
 			[Catan.BRICK]: +document.forms.discard.brick.value,
 		};
-		
+
 		this.ws.send(JSON.stringify({ message: "discardResources", resources:resources }));		
-	}
-	else
-	{
+	} else {
 		alert("No! bad!");
 	}
 }.bind(lobby));
 
-let showDiscardModal = function(){
+let showDiscardModal = function () {
 	document.forms.discard.ore.max = +document.getElementById("ore").innerHTML;
 	document.forms.discard.wood.max = +document.getElementById("wood").innerHTML;
 	document.forms.discard.wool.max = +document.getElementById("wool").innerHTML;
@@ -705,10 +699,11 @@ let showDiscardModal = function(){
 let discardForm = document.forms.discard;
 let discards = [discardForm.ore, discardForm.wood, discardForm.wool, discardForm.grain, discardForm.brick];
 discards.forEach(function (input) {
-		input.addEventListener("change", function (event) {
-			if(+event.target.value > +event.target.max)
-				event.target.value = +event.target.max;
-		});
+	input.addEventListener("change", function (event) {
+		if (+event.target.value > +event.target.max) {
+			event.target.value = +event.target.max;
+		}
+	});
 });
 
 run(lobby);
