@@ -303,7 +303,8 @@ wss.on("connection", function (ws) {
 				let discardCount = countResources(message.resources);
 				if (
 					!players[player].hasResources(message.resources) ||
-					discardCount != this.resourcesToDiscard[player]
+					discardCount != this.resourcesToDiscard[player] ||
+					!this.resourcesStolen
 				) {
 					sendError(ws, "discardResources");
 					break;
@@ -332,8 +333,8 @@ wss.on("connection", function (ws) {
 				let targets = [];
 				for (let [vx, vy, vd] of board.cornerVertices(message.x, message.y)) {
 					let building = board.buildings[vy][vx][vd];
-					if (!building || building.player == turn) { continue; }
-
+					if (!building || building.player == turn || targets.indexOf(building.player) != -1) { continue; }
+					
 					if (countResources(players[building.player].resources) > 0) {
 						console.log("adding target: " + building.player);
 						targets.push(building.player);
@@ -363,7 +364,7 @@ wss.on("connection", function (ws) {
 				let allResources = [];
 				let playerResources = players[message.player].resources;
 				for (let resourceType in playerResources) {
-					allResources.push.apply(allResources, repeat(resourceType, playerResources[resourceType]));
+					allResources.push.apply(allResources, Catan.repeat(resourceType, playerResources[resourceType]));
 				}
 
 				// Choose a random resource to steal
@@ -376,6 +377,11 @@ wss.on("connection", function (ws) {
 				sendResources(ws, players[player]);
 				sendResources(clients[message.player], players[message.player]);
 
+				clients.forEach(function (ws, player) {
+					let stealGood = { message: "stealGood" };
+					ws.send(JSON.stringify(stealGood));
+				});
+				
 				this.resourceStolen = true;
 				break;
 			}

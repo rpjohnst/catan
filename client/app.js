@@ -142,26 +142,28 @@ class Play {
 					if (message.player == this.player) {
 						this.action = "moveRobber";
 					}
-
-					let total = 0;
-					for (let resource in Play.resourceNames) {
-						resource = +resource;
-						total += +document.getElementById(Play.resourceNames[resource]).innerHTML;						
-					}
-
-					if (total > 7) {
-						// Find number to discard
-						let discard = Math.floor(total/2);
-
-						// Update label
-						let cards = (discard > 1)? "Cards": "Card";
-						document.getElementById("discard-amount").innerHTML = "Discard " + discard + " " + cards;
-
-						showDiscardModal();
-					}
 				}
 				break;
+				
+			case "stealGood":
+				let total = 0;
+				for (let resource in Play.resourceNames) {
+					resource = +resource;
+					total += +document.getElementById(Play.resourceNames[resource]).innerHTML;						
+				}
 
+				if (total > 7) {
+					// Find number to discard
+					let discard = Math.floor(total/2);
+
+					// Update label
+					let cards = (discard > 1)? "Cards": "Card";
+					document.getElementById("discard-amount").innerHTML = "Discard " + discard + " " + cards;
+					showDiscardModal();
+				}
+				
+				break;
+					
 			case "resources":
 				for (let resource in Play.resourceNames) {
 					resource = +resource;
@@ -217,7 +219,7 @@ class Play {
 					for (let i=0; i < message.targets.length; i++) {
 						let target = message.targets[i];
 						let button = document.createElement("button");
-						button.innerHTML = "" + target;
+						button.innerHTML = "Steal From Player " + target;
 						button.setAttribute("type", "button");
 						button.classList.add("steal-btn");
 						button.addEventListener("click", function (event) {
