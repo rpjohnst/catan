@@ -116,6 +116,7 @@ wss.on("connection", function (ws) {
 					
 					let terrain = board.tiles[message.y][message.x];
 					if (terrain !== Catan.OCEAN) {
+						robberMoved = true;
 						board.robber[0] = message.x;
 						board.robber[1] = message.y;
 						
@@ -186,6 +187,7 @@ wss.on("connection", function (ws) {
 					// Update resource counts
 					sendResources(ws, players[player]);
 					sendResources(clients[message.player], players[message.player]);
+					resourceStolen = true;
 				}
 				
 				// Check if we're done with "robber mode"
@@ -194,7 +196,7 @@ wss.on("connection", function (ws) {
 					toDiscard += resourcesToDiscard[player]
 				}
 				// TODO: re-add discard check
-				if (robberMoved && resourceStolen) {
+				if (toDiscard == 0 && robberMoved && resourceStolen) {
 					handlingRobber = false;
 				}
 				
