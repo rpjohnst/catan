@@ -91,10 +91,20 @@ wss.on("connection", function (ws) {
 					break;
 				
 				case "discardResources":
+					let discardCount = 0;
+					
 					for (let resourceType in message.resources) {
-						resourcesToDiscard[player] -= message.resources[resourceType];
-						players[player].resources[resourceType] -= message.resources[resourceType];
+						discardCount += message.resources[resourceType];
 					}
+					
+					if (!players[player].hasResources(message.resources) || discardCount != resourcesToDiscard[player]) {
+						sendError(ws, "discardResources");
+						break;
+					}
+					resourcesToDiscard[player] = 0;
+					players[player].spendResources(message.resources);
+					
+					ws.send(JSON.stringify({ message: "discardGood" }));
 					sendResources(ws, players[player]);
 					break;
 				
