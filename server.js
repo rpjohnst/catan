@@ -280,10 +280,7 @@ wss.on("connection", function (ws) {
 			case "turn":
 				turn = (turn + 1) % clients.length;
 
-				let dice = Math.floor(Math.random() * 6 + 1) + Math.floor(Math.random() * 6 + 1);
-				
-				// TODO: remove this
-				dice = 7;
+				let dice = Math.floor(Math.random() * 6 + 1) + Math.floor(Math.random() * 6 + 1);				
 				console.log("Dice Roll: " + dice);
 				
 				// Assign resources

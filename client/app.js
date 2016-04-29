@@ -131,9 +131,30 @@ class Play {
 			case "turn":
 				this.turn = message.player;
 				this.dice = message.dice;				
-				if(this.dice == 7 && message.player == this.player){
-					this.action = "moveRobber";					
+				
+				if(this.dice == 7)
+				{
+					if(message.player == this.player)
+						this.action = "moveRobber";
+					
+					let total = 0;
+					for (let resource in Play.resourceNames) {
+						resource = +resource;
+						total += +document.getElementById(Play.resourceNames[resource]).innerHTML;						
+					}
+					
+					if(total > 7){
+							// Find number to discard
+							let discard = Math.floor(total/2);
+
+							// Update label
+							let cards = (discard > 1)? "Cards": "Card";
+							document.getElementById("discard-amount").innerHTML = "Discard " + discard + " " + cards;
+										
+							showDiscardModal();
+					}
 				}
+				
 				break;
 				
 			case "resources":
@@ -164,7 +185,11 @@ class Play {
 				this.tradingOngoing = true;
 				this.tradingOffers[message.player] = message.offer;
 				break;
-			
+				
+			case "discardGood":
+				document.getElementById('discard-modal').style.display = "none";
+				break;
+				
 			case "robberGood":
 				this.board.robber = [message.x, message.y];
 				if(this.action == "moveRobber")
@@ -175,13 +200,15 @@ class Play {
 					// Add UI element to select player with event to send steal message
 					for(let i=0; i < message.targets.length; i++){
 						let target = message.targets[i];
-						var button = document.createElement("button")
+						let button = document.createElement("button")
 						button.innerHTML = "" + target;
+						button.setAttribute("type", "button");
 						button.classList.add("steal-btn");
 						button.addEventListener("click", function (event) {							
 							this.ws.send(JSON.stringify({ message: "steal", player:target }));
-							for(removeMe in document.querySelectorAll(".steal-btn")){
-								document.forms.building.removeChild(removeMe);
+							let removals = document.querySelectorAll(".steal-btn");
+							for(let j=0; j < removals.length; j++){
+								document.forms.building.removeChild(removals[j]);
 							}
 							if(this.action == "stealing")
 								delete this.action;
@@ -196,6 +223,12 @@ class Play {
 			case "endTrade":
 				this.tradingOngoing = false;
 				this.tradingOffers = [];
+				break;
+			
+			case "error":
+				if(message.error == "discardResources"){
+					showDiscardModal();
+				}
 				break;
 
 			case "end":
@@ -405,24 +438,6 @@ class Play {
 		currentState.lex = mex; currentState.ley = mey; currentState.led = med;
 		currentState.lmx = mx; currentState.lmy = my;
 		
-		// draw robber
-		if(this.action == "moveRobber")
-		{
-			let image = this.assets.pawn;
-			let [px, py] = tileToPixels(mx, my);
-			if(currentState.board.tiles[my] && currentState.board.tiles[my][mx] && currentState.board.tiles[my][mx] != Catan.OCEAN){
-				ctx.globalAlpha = 0.5;
-				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
-				ctx.globalAlpha = 1.0;
-			}
-		}
-		else
-		{
-			let image = this.assets.pawn;
-			let [px, py] = tileToPixels(this.board.robber[0], this.board.robber[1]);
-			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
-		}
-
 		// draw numbers
 		this.board.hit.forEach((hit, i) => {
 			if (hit == null || i == 0) { return; }
@@ -448,6 +463,24 @@ class Play {
 				}
 			}
 		});
+		
+		// draw robber
+		if(this.action == "moveRobber")
+		{
+			let image = this.assets.pawn;
+			let [px, py] = tileToPixels(mx, my);
+			if(currentState.board.tiles[my] && currentState.board.tiles[my][mx] && currentState.board.tiles[my][mx] != Catan.OCEAN){
+				ctx.globalAlpha = 0.5;
+				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
+				ctx.globalAlpha = 1.0;
+			}
+		}
+		else
+		{
+			let image = this.assets.pawn;
+			let [px, py] = tileToPixels(this.board.robber[0], this.board.robber[1]);
+			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
+		}
 		
 		if (this.tradingOngoing) {
 			ctx.font = "14px sans-serif";
@@ -545,6 +578,7 @@ canvas.addEventListener("mousemove", function (event) {
 });
 
 canvas.addEventListener("click", function (event) {
+	event.preventDefault();
 	if(!currentState.action) return;
 	
 	switch(currentState.action){
@@ -562,14 +596,13 @@ canvas.addEventListener("click", function (event) {
 	
 	if(currentState.action != "moveRobber")
 		delete currentState.action;
-	restoreDefaultButtons();
-	
-	event.preventDefault();
+	restoreDefaultButtons();	
 });
 
 let buildIds = ["buildRoad", "buildTown", "buildCity"];
 for(let id of buildIds){
 	document.getElementById(id).addEventListener("click", function (event) {
+		event.preventDefault();
 		if(currentState.action == "moveRobber" || currentState.action == "stealing")
 			return;
 		restoreDefaultButtons();
@@ -578,12 +611,12 @@ for(let id of buildIds){
 		else {
 			currentState.action = id;
 			document.getElementById(id).innerHTML = "Cancel";
-		}
-		event.preventDefault();
+		}		
 	});
 }
 
 document.getElementById("endTurn").addEventListener("click", function (event) {
+	event.preventDefault();
 	if(currentState.action == "moveRobber" || currentState.action == "stealing")
 		return;
 	
@@ -591,8 +624,7 @@ document.getElementById("endTurn").addEventListener("click", function (event) {
 		delete currentState.action;
 		restoreDefaultButtons();
 	}
-	currentState.endTurn();
-	event.preventDefault();
+	currentState.endTurn();	
 });
 
 {
@@ -624,4 +656,59 @@ document.getElementById("endTurn").addEventListener("click", function (event) {
 }
 
 let ctx = canvas.getContext("2d");
-run(new Lobby(ctx));
+let lobby = new Lobby(ctx);
+
+document.getElementById("discard-btn").addEventListener("click", function(event) {
+	event.preventDefault();
+	let total = 0;
+	for (let resource in Play.resourceNames) {
+		resource = +resource;
+		total += +document.getElementById(Play.resourceNames[resource]).innerHTML;						
+	}
+	let discard = Math.floor(total/2);
+
+	// Check if total is good
+	let discarded = +document.forms.discard.ore.value +
+									+document.forms.discard.wood.value +
+									+document.forms.discard.wool.value +
+									+document.forms.discard.grain.value +
+									+document.forms.discard.brick.value;
+
+	document.forms.discard
+
+	if(discarded == discard){
+		let resources = {
+			[Catan.ORE]: +document.forms.discard.ore.value,
+			[Catan.WOOD]: +document.forms.discard.wood.value,
+			[Catan.WOOL]: +document.forms.discard.wool.value,
+			[Catan.GRAIN]: +document.forms.discard.grain.value,
+			[Catan.BRICK]: +document.forms.discard.brick.value,
+		};
+		
+		this.ws.send(JSON.stringify({ message: "discardResources", resources:resources }));		
+	}
+	else
+	{
+		alert("No! bad!");
+	}
+}.bind(lobby));
+
+let showDiscardModal = function(){
+	document.forms.discard.ore.max = +document.getElementById("ore").innerHTML;
+	document.forms.discard.wood.max = +document.getElementById("wood").innerHTML;
+	document.forms.discard.wool.max = +document.getElementById("wool").innerHTML;
+	document.forms.discard.grain.max = +document.getElementById("grain").innerHTML;
+	document.forms.discard.brick.max = +document.getElementById("brick").innerHTML;
+	document.getElementById('discard-modal').style.display = "block";
+}
+
+let discardForm = document.forms.discard;
+let discards = [discardForm.ore, discardForm.wood, discardForm.wool, discardForm.grain, discardForm.brick];
+discards.forEach(function (input) {
+		input.addEventListener("change", function (event) {
+			if(+event.target.value > +event.target.max)
+				event.target.value = +event.target.max;
+		});
+});
+
+run(lobby);
