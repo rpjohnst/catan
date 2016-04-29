@@ -121,7 +121,8 @@ wss.on("connection", function (ws) {
 						}
 					} else if (this.phase == 1) {
 						if (turn == this.start) {
-							turn -= 1;
+							turn = (turn+3) % 4; // Step back one with wraparound
+							player = turn;       // Ensure player matches expected turn
 							currentState = new Play();
 							currentState.onmessage(ws, player, { message: "turn", start: true });
 							break;
@@ -282,8 +283,9 @@ wss.on("connection", function (ws) {
 			this.resourcesToDiscard = [];
 
 			for (let player in players) {
-				if (countResources(players[player].resources) > 7) {
-					this.resourcesToDiscard[player] = Math.floor(resourceSum / 2);
+				let resourceCount = countResources(players[player].resources);
+				if (resourceCount > 7) {
+					this.resourcesToDiscard[player] = Math.floor(resourceCount / 2);
 				}
 			}
 		}
@@ -332,7 +334,7 @@ wss.on("connection", function (ws) {
 					let building = board.buildings[vy][vx][vd];
 					if (!building || building.player == turn) { continue; }
 
-					if (resourceSum > countResources(players[building.player].resources)) {
+					if (countResources(players[building.player].resources) > 0) {
 						console.log("adding target: " + building.player);
 						targets.push(building.player);
 					}
@@ -348,7 +350,7 @@ wss.on("connection", function (ws) {
 					let robberGood = { message: "robberGood", x: message.x, y: message.y };
 					if (player == stealingPlayer) { robberGood.targets = targets; }
 
-					ws.send(JSON.stringify(message));
+					ws.send(JSON.stringify(robberGood));
 				});
 				break;
 
@@ -379,7 +381,7 @@ wss.on("connection", function (ws) {
 			}
 
 			// Check if we're done with "robber mode"
-			let toDiscard = this.resourcesToDiscard.reduce((x, y) => x + y);
+			let toDiscard = this.resourcesToDiscard.reduce((x, y) => x + y, 0);
 			// TODO: re-add discard check
 			if (toDiscard == 0 && this.robberMoved && this.resourceStolen) {
 				currentState = new Play();
