@@ -113,6 +113,9 @@ class Play {
 		this.board = board;
 		this.player = player;
 		this.turn = turn;
+
+		this.pregame = true;
+
 		this.tradingOffers = [];
 		this.tradingOngoing = false;
 
@@ -133,6 +136,7 @@ class Play {
 			case "turn":
 				this.turn = message.player;
 				this.dice = message.dice;				
+				if (message.start) { this.pregame = false; }
 
 				if (this.dice == 7) {
 					if (message.player == this.player) {
@@ -179,7 +183,7 @@ class Play {
 				break;
 
 			case "build":
-				this.board.build(message.type, message.x, message.y, message.d, message.player);				
+				this.board.build(message.type, message.x, message.y, message.d, message.player, this.pregame);
 				break;
 
 			case "offer":
@@ -363,8 +367,8 @@ class Play {
 
 		// draw "under construction" items
 		{
-			let drawGhost = function(validityCheck, x, y, d){
-				if(validityCheck(x, y, d, currentState.player)){
+			let drawGhost = function (validityCheck, x, y, d) {
+				if (validityCheck(x, y, d, currentState.player, this.pregame)) {
 					let [px, py] = vertexToPixels(x, y, d);
 					ctx.globalAlpha = 0.5;
 					let image = (currentState.action == "buildTown")? this.assets.towns[currentState.player]: this.assets.cities[currentState.player];
@@ -372,17 +376,17 @@ class Play {
 					ctx.globalAlpha = 1.0;
 				}
 			};
-			
-			if(currentState.action == "buildTown")
+
+			if (currentState.action == "buildTown") {
 				drawGhost.call(this, currentState.board.validTown.bind(currentState.board), mvx, mvy, mvd);
-			
-			if(currentState.action == "buildCity")
+			}
+
+			if (currentState.action == "buildCity") {
 				drawGhost.call(this, currentState.board.validCity.bind(currentState.board), mvx, mvy, mvd);
-			
-			if(currentState.action == "buildRoad")
-			{
-				if(currentState.board.validRoad(mex, mey, med, currentState.player, false))
-				{
+			}
+
+			if (currentState.action == "buildRoad") {
+				if (currentState.board.validRoad(mex, mey, med, currentState.player, this.pregame)) {
 					let [[x1, y1, d1], [x2, y2, d2]] = this.board.endpointVertices(mex, mey, med);
 					let [px1, py1] = vertexToPixels(x1, y1, d1);
 					let [px2, py2] = vertexToPixels(x2, y2, d2);

@@ -65,127 +65,80 @@ wss.on("connection", function (ws) {
 		});
 	});
 
+	class Start {
+		constructor() {
+			this.building = 0;
+			this.phase = 0;
+
+			turn = this.start = [
+				rollDie(), rollDie(), rollDie(), rollDie()
+			].reduce((max, d, i, v) => d > v[max] ? i : max, 0);
+
+			clients.forEach(function (ws, player) {
+				ws.send(JSON.stringify({ message: "start", board: board, player: player }));
+				ws.send(JSON.stringify({ message: "turn", player: turn }));
+
+				// TODO: Distribute initial resources
+				sendResources(ws, players[player]);
+			});
+		}
+
+		onmessage(ws, player, message) {
+			if (player != turn) {
 				sendError(ws, "turn");
 				return;
 			}
-			
-			// Handling robber mode
-			if (handlingRobber) {
-				switch (message.message) {
-				default:
-					sendError(ws, "message");
+
+			switch (message.message) {
+			default: sendError(ws, "message"); break;
+
+			case "build":
+				if (
+					message.type != [Catan.TOWN, Catan.ROAD][this.building] ||
+					!board.build(message.type, message.x, message.y, message.d, turn, true)
+				) {
+					sendError(ws, "build");
 					break;
-				
-				case "discardResources":
-					let discardCount = 0;
-					
-					for (let resourceType in message.resources) {
-						discardCount += message.resources[resourceType];
-					}
-					
-					if (!players[player].hasResources(message.resources) || discardCount != resourcesToDiscard[player]) {
-						sendError(ws, "discardResources");
-						break;
-					}
-					resourcesToDiscard[player] = 0;
-					players[player].spendResources(message.resources);
-					
-					ws.send(JSON.stringify({ message: "discardGood" }));
-					sendResources(ws, players[player]);
-					break;
-				
-				case "moveRobber":
-					if (robberMoved || !board.tiles[message.y] || !board.tiles[message.y][message.x]) {
-						sendError(ws, "moveRobber");
-						break;
-					}
-					
-					let terrain = board.tiles[message.y][message.x];
-					if (terrain !== Catan.OCEAN) {
-						robberMoved = true;
-						board.robber[0] = message.x;
-						board.robber[1] = message.y;
-						
-						let targets = [];
-						for (let [vx, vy, vd] of board.cornerVertices(message.x, message.y)) {
-							
-							let building = board.buildings[vy][vx][vd];							
-							if (building && building.player !== player) {
-								let resourceSum = 0;
-								let playerResources = players[building.player].resources;
-								for (let resourceType in playerResources) {
-									resourceSum += playerResources[resourceType];
-								}
-								if (resourceSum > 0) {
-									console.log("adding target: " + building.player);
-									targets.push(building.player);
-								}
-							}
+				}
+
+				clients.forEach(function (ws, player) {
+					ws.send(JSON.stringify({
+						message: "build", type: message.type,
+						x: message.x, y: message.y, d: message.d,
+						player: turn
+					}));
+				});
+
+				this.building = (this.building + 1) % 2;
+				if (this.building == 0) {
+					if (this.phase == 0) {
+						let nextTurn = (turn + 1) % clients.length;
+						if (nextTurn == this.start) {
+							this.phase += 1;
+							break;
+						} else {
+							turn = nextTurn;
 						}
-						
-						
-						let stealingPlayer = player;
-						clients.forEach(function (ws, player) {
-							if (player === stealingPlayer) {
-								ws.send(JSON.stringify({
-									message: "robberGood", 
-									x: message.x, 
-									y: message.y,
-									targets: targets
-								}));
-							}
-							ws.send(JSON.stringify({
-								message: "robberGood", 
-								x: message.x, 
-								y: message.y,
-							}));
-						});
-						
-						// If there is no one to steal from, assume stealing has already been completed.
-						if (targets.length == 0) {
-							resourceStolen = true;
-						}
-						
-					} else {
-						sendError(ws, "moveRobber");
-					}
-					
-					break;
-					
-				case "steal":
-					if (resourceStolen) {
-						sendError(ws, "steal");
-						break;
-					}
-					
-					let allResources = [];
-					let playerResources = players[message.player].resources;
-					for (let resourceType in playerResources) {
-						for (let i = 0; i < playerResources[resourceType]; i++) {
-							allResources.push(resourceType);
+					} else if (this.phase == 1) {
+						if (turn == this.start) {
+							turn -= 1;
+							currentState = new Play();
+							currentState.onmessage(ws, player, { message: "turn", start: true });
+							break;
+						} else {
+							turn = (turn + clients.length - 1) % clients.length;
 						}
 					}
-					// Choose a random resource to steal
-					let chosenIndex = Math.floor(Math.random() * allResources.length);
-					let chosenResource = allResources[chosenIndex];
-					players[player].resources[chosenResource]++;
-					players[message.player].resources[chosenResource]--;
-					// Update resource counts
-					sendResources(ws, players[player]);
-					sendResources(clients[message.player], players[message.player]);
-					resourceStolen = true;
+
+					clients.forEach(function (ws, player) {
+						ws.send(JSON.stringify({ message: "turn", player: turn }));
+					});
 				}
-				
-				// Check if we're done with "robber mode"
-				let toDiscard = 0;
-				for (let player in resourcesToDiscard) {
-					toDiscard += resourcesToDiscard[player]
-				}
-				// TODO: re-add discard check
-				if (toDiscard == 0 && robberMoved && resourceStolen) {
-					handlingRobber = false;
-				}
-				
+				break;
+			}
+		}
+	}
+
 	class Play {
 		onmessage(ws, player, message) {
 			if (player != turn) {
@@ -436,7 +389,7 @@ wss.on("connection", function (ws) {
 		}
 	}
 
-	currentState = new Play();
+	currentState = new Start();
 
 	function sendResources(ws, player) {
 		ws.send(JSON.stringify({

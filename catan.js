@@ -66,24 +66,6 @@ class Catan {
 				}
 			}
 		}
-
-		// TODO: remove hard-coded initial board state
-		this.build(Catan.TOWN, 3, 3, 0, 0, true);
-		this.build(Catan.ROAD, 3, 3, 0, 0, true);
-		this.build(Catan.TOWN, 3, 2, 1, 0, true);
-		this.build(Catan.ROAD, 4, 1, 1, 0, true);
-		this.build(Catan.TOWN, 3, 5, 1, 1, true);
-		this.build(Catan.ROAD, 4, 4, 0, 1, true);
-		this.build(Catan.TOWN, 2, 3, 0, 1, true);
-		this.build(Catan.ROAD, 1, 3, 2, 1, true);
-		this.build(Catan.TOWN, 5, 3, 0, 2, true);
-		this.build(Catan.ROAD, 4, 3, 2, 2, true);
-		this.build(Catan.TOWN, 1, 5, 1, 2, true);
-		this.build(Catan.ROAD, 2, 4, 0, 2, true);
-		this.build(Catan.TOWN, 2, 2, 1, 3, true);
-		this.build(Catan.ROAD, 3, 1, 0, 3, true);
-		this.build(Catan.TOWN, 1, 2, 1, 3, true);
-		this.build(Catan.ROAD, 1, 2, 2, 3, true);
 	}
 
 	build(type, x, y, d, player, pregame) {
