@@ -12,6 +12,15 @@ class Catan {
 		this.tiles = [];
 		this.buildings = [];
 		this.roads = [];
+
+		// First player to surpass this gets the Longest Road points
+		this.maxRoadLength = 1;
+		this.maxRoadPlayer = null;
+
+		// First player to surpass this gets the Largest army points
+		this.maxSoldiers = 2;
+		this.maxSoldiersPlayer = null;
+
 		for (let y = 0; y < 7; y++) {
 			this.tiles[y] = repeat(null, 7);
 			this.buildings[y] = [];

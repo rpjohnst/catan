@@ -203,6 +203,11 @@ wss.on("connection", function (ws) {
 				}
 
 				players[turn].build(message.type);
+
+				if (+message.type == Catan.ROAD) {
+					this.dfs({ x: +message.x, y: +message.y, d: +message.d }, turn);
+				}
+
 				sendResources(clients[turn], players[turn]);
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
@@ -258,6 +263,96 @@ wss.on("connection", function (ws) {
 				}
 				break;
 			}
+		}
+
+		// road contains x,y,d coordinates
+		dfs(road, player) {
+			let buildVisited = function () {
+				let visited = [];
+				for (let y = 0; y < 7; y++) {
+					visited[y] = [];
+					for (let x = 0; x < 7; x++) {
+						visited[y][x] = [];
+						visited[y][x].push({ visited: false, endNode: false });
+						visited[y][x].push({ visited: false, endNode: false });
+						visited[y][x].push({ visited: false, endNode: false });
+					}
+				}
+				return visited;
+			};
+
+			let visited = buildVisited();
+			this.dfs_r(road, visited, player);
+
+			// Now visited contains markers for end nodes
+			for (let y = 0; y < 7; y++) {
+				for (let x = 0; x < 7; x++) {
+					for (let d = 0; d < 3; d++) {
+						if (visited[y][x][d].endNode) {
+							let visited_cost = buildVisited();
+							let max = this.dfs_cost({ x: x, y: y, d: d }, 0, 0, player, visited_cost);
+							if (max > board.maxRoadLength) {
+								board.maxRoadLength = max;
+								board.maxRoadPlayer = player;
+
+								console.log("max road length: " + max);
+								console.log("max road player: " + player);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		dfs_cost(road, depth, max, player, visited_cost) {
+			depth++;
+			visited_cost[road.y][road.x][road.d].visited = true;
+			let neighbors = this.road_neighbors(road, player);
+			neighbors.forEach(neighbor => {				
+				if (depth > max) {
+					max = depth;
+				}
+
+				if(!visited_cost[neighbor.y][neighbor.x][neighbor.d].visited) { 
+					max = this.dfs_cost(neighbor, depth, max, player, visited_cost);
+				}
+			});
+			return max;
+		}
+
+		road_neighbors(road, player) {
+			let neighbors = [];
+			let endpoints = board.endpointVertices(road.x, road.y, road.d);
+			endpoints.forEach(endpoint => {
+				let candidates = board.protrudeEdges(endpoint[0], endpoint[1], endpoint[2]);
+				candidates.forEach(candidate => {
+					let cx = candidate[0];
+					let cy = candidate[1];
+					let cd = candidate[2];
+
+					if ((cx != road.x || cy != road.y || cd != road.d) && player == board.roads[cy][cx][cd]) { 
+						neighbors.push({x:cx, y:cy,d :cd});
+					}
+				});
+			});
+
+			return neighbors;
+		}
+
+		dfs_r(road, visited, player) { 
+			visited[road.y][road.x][road.d].visited = true;
+			visited[road.y][road.x][road.d].endNode = true;
+
+			var neighbors = this.road_neighbors(road, player);
+			neighbors.forEach(neighbor => {		
+				let cx = neighbor.x;
+				let cy = neighbor.y;
+				let cd = neighbor.d;
+				if(!visited[cy][cx][cd].visited) { 
+					visited[road.y][road.x][road.d].endNode = false;
+					this.dfs_r(neighbor, visited, player);
+				}
+			});
 		}
 	}
 
