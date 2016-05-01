@@ -1,6 +1,7 @@
 "use strict";
 
-let Catan = require("../catan");
+let Catan = require("../catan").Catan,
+	Player = require("../player");
 
 	let radius = 35,
 			hexagon_narrow_width = 3 / 2 * radius,
@@ -26,7 +27,7 @@ let Catan = require("../catan");
 	let pixelsToTile = function (px, py) {
 		let width = canvas.width;
 		let height = canvas.height;
-		
+
 		// convert to fractional cube coordinates
 		let x = (px - width / 4) / hexagon_narrow_width,
 			y = (height / 2 - py) / hexagon_height - x / 2,
@@ -96,7 +97,7 @@ const server = "ws://" + window.location.hostname + ":8081";
 
 class ResourceSprite {
 	constructor(sx, sy, fx, fy, resource, assets, ctx){
-		
+
 		switch(resource){
 			case Catan.ORE:		this.image = assets.ore_sm; break;
 			case Catan.WOOD:	this.image = assets.logs_sm; break;
@@ -111,31 +112,31 @@ class ResourceSprite {
 		this.scale = 0.5;
 		this.drawCount = 0;
 	}
-	
+
 	draw() {
 		let ctx = this.ctx, width = ctx.canvas.clientWidth, height = ctx.canvas.clientHeight;
 		this.drawCount++;
-		
+
 		ctx.drawImage(this.image, this.x - this.image.width * this.scale / 2, this.y - this.image.height * this.scale / 2, 
 									this.image.width * this.scale, this.image.height * this.scale);
-		
+
 		let N = 125;
 		if(this.drawCount < N){
 			this.scale = 0.5 + (this.drawCount/N * 0.5);
 			return; // Grow to full size but stay still within first N draw calls
 		}
-		
+
 		if(this.x > this.fx)
 			this.x -= this.speed;
 		else if(this.x < this.fx)
 			this.x += this.speed;
-		
+
 		if(this.y > this.fy)
 			this.y -= this.speed;
 		else if(this.y < this.fy)
 			this.y += this.speed;
 	}
-	
+
 	isDone() { return Math.abs(this.x - this.fx) <= 1 && Math.abs(this.y - this.fy) <= 1; }
 }
 
@@ -239,13 +240,15 @@ class Play {
 		this.ws = ws;
 
 		this.board = board;
+		this.hand = new Player();
 		this.player = player;
 		this.turn = turn;
 
 		this.pregame = true;
+		this.lastTown = [];
 
 		this.sprites = [];
-		
+
 		this.tradingOffers = [];
 		this.tradingOngoing = false;
 
@@ -255,50 +258,73 @@ class Play {
 		this.ws.onmessage = (event) => {
 			console.log(event.data);
 
-			// Regardless of the incoming message, the pending city's status is confirmed
-			// Allow draw function to display the old town (error) or new city (verified)
-			if (this.pendingCity) {
-				delete this.pendingCity;
-			}
-
 			let message = JSON.parse(event.data);
 			switch (message.message) {
+			// main play messages
+
 			case "turn":
 				this.turn = message.player;
 				this.dice = message.dice;				
-				if (message.start) { this.pregame = false; }
-				
-				if (this.dice == 7) {
-					if (message.player == this.player) {
-						this.action = "moveRobber";
-					}
-				} else if(this.dice) {
-					
-						let hits = this.board.hit[this.dice];
-						hits.forEach(hit => {
-							if(hit) {
-								let resource = this.board.tiles[hit[1]][hit[0]];
-								let sPosition = tileToPixels(hit[0], hit[1]);
-								let corners = this.board.cornerVertices(hit[0], hit[1]);
-								corners.forEach(corner => {
-									if(this.board.buildings[corner[1]][corner[0]][corner[2]]){
-										let fPosition = vertexToPixels(corner[0], corner[1], corner[2]);
-										this.sprites.push(new ResourceSprite(sPosition[0], sPosition[1], fPosition[0], fPosition[1], resource, this.assets, this.ctx));		
-									}
-									
-								});
-								
-							}
-						});					
+				if (message.start) {
+					this.pregame = false;
+					delete this.lastTown;
 				}
-				
+
+				if (!this.dice) { break; }
+				if (this.dice == 7 && this.player == message.player) {
+					this.action = "moveRobber";
+				}
+
+				for (let [hx, hy] of this.board.hit[this.dice]) {
+					let resource = this.board.tiles[hy][hx];
+					let [tpx, tpy] = tileToPixels(hx, hy);
+					for (let [cx, cy, cd] of this.board.cornerVertices(hx, hy)) {
+						if (!this.board.buildings[cy][cx][cd]) { continue; }
+
+						let [vpx, vpy] = vertexToPixels(cx, cy, cd);
+						this.sprites.push(new ResourceSprite(
+							tpx, tpy, vpx, vpy, resource, this.assets, this.ctx
+						));
+					}
+				}
 				break;
-				
+
+			case "resources":
+				this.hand.resources = message.resources;
+				this.hand.pieces = message.pieces;
+				this.hand.cards = message.cards;
+				break;
+
+			case "build":
+				if (this.pregame && message.type == Catan.TOWN) {
+					this.lastTown[message.player] = { x: message.x, y: message.y, d: message.d };
+				}
+
+				if (this.pendingCity) { delete this.pendingCity; }
+				this.board.build(
+					message.type, message.x, message.y, message.d, message.player,
+					this.pregame, this.lastTown[message.player]
+				);
+				break;
+
+			// trading messages
+
+			case "offer":
+				this.tradingOngoing = true;
+				this.tradingOffers[message.player] = message.offer;
+				break;
+
+			case "end":
+				currentState = new Lobby(ctx);
+				break;
+
+			// robber messages
+
 			case "stealGood":
 				let total = 0;
 				for (let resource in Play.resourceNames) {
 					resource = +resource;
-					total += +document.getElementById(Play.resourceNames[resource]).innerHTML;						
+					total += this.hand.resources[resource];
 				}
 
 				if (total > 7) {
@@ -310,40 +336,7 @@ class Play {
 					document.getElementById("discard-amount").innerHTML = "Discard " + discard + " " + cards;
 					showDiscardModal();
 				}
-				
-				break;
-					
-			case "resources":
-				for (let resource in Play.resourceNames) {
-					resource = +resource;
-					document.getElementById(Play.resourceNames[resource]).innerHTML =
-						message.resources[resource];
-				}
 
-				for (let piece in Play.pieceIds) {
-					piece = +piece;
-					document.getElementById(Play.pieceIds[piece]).innerHTML =
-						message.pieces[piece];
-				}
-
-				for (let card in Play.cardIds) {
-					card = +card;
-					document.getElementById(Play.cardIds[card]).innerHTML =
-						message.cards[card];
-				}
-				break;
-
-			case "build":
-				this.board.build(message.type, message.x, message.y, message.d, message.player, this.pregame);
-				break;
-
-			case "offer":
-				this.tradingOngoing = true;
-				this.tradingOffers[message.player] = message.offer;
-				break;
-
-			case "end":
-				currentState = new Lobby(ctx);
 				break;
 
 			case "discardGood":
@@ -416,7 +409,7 @@ class Play {
 		let cx = 3, cy = 3, N = 3;
 
 		// draw tiles
-		forEachTile(cx, cy, N, (x, y) => {
+		this.board.forEachTile(cx, cy, N, (x, y) => {
 			let [px, py] = tileToPixels(x, y);
 
 			let image = this.assets.hexagons[this.board.tiles[y][x]] || this.assets.hexagon;
@@ -425,7 +418,7 @@ class Play {
 		});
 
 		// draw roads
-		forEachTile(cx, cy, N, (x, y) => {
+		this.board.forEachTile(cx, cy, N, (x, y) => {
 			for (let d = 0; d < 3; d++) {
 				let road = this.board.roads[y][x][d];
 				if (road == null) { continue; }
@@ -445,7 +438,7 @@ class Play {
 
 		// draw "under construction" items
 		{
-			let drawGhost = function (validityCheck, x, y, d) {
+			let drawGhost = (validityCheck, x, y, d) => {
 				if (validityCheck(x, y, d, currentState.player, this.pregame)) {
 					let [px, py] = vertexToPixels(x, y, d);
 					ctx.globalAlpha = 0.5;
@@ -456,15 +449,18 @@ class Play {
 			};
 
 			if (currentState.action == "buildTown") {
-				drawGhost.call(this, currentState.board.validTown.bind(currentState.board), mvx, mvy, mvd);
+				drawGhost(currentState.board.validTown.bind(currentState.board), mvx, mvy, mvd);
 			}
 
 			if (currentState.action == "buildCity") {
-				drawGhost.call(this, currentState.board.validCity.bind(currentState.board), mvx, mvy, mvd);
+				drawGhost(currentState.board.validCity.bind(currentState.board), mvx, mvy, mvd);
 			}
 
 			if (currentState.action == "buildRoad") {
-				if (currentState.board.validRoad(mex, mey, med, currentState.player, this.pregame)) {
+				let lastTown = this.pregame ? this.lastTown[this.player] : undefined;
+				if (currentState.board.validRoad(
+					mex, mey, med, currentState.player, this.pregame, lastTown)
+				) {
 					let [[x1, y1, d1], [x2, y2, d2]] = this.board.endpointVertices(mex, mey, med);
 					let [px1, py1] = vertexToPixels(x1, y1, d1);
 					let [px2, py2] = vertexToPixels(x2, y2, d2);
@@ -478,7 +474,7 @@ class Play {
 		}
 
 		// draw buildings
-		forEachTile(cx, cy, N, (x, y) => {
+		this.board.forEachTile(cx, cy, N, (x, y) => {
 			for (let d = 0; d < 2; d++) {
 				let building = this.board.buildings[y][x][d];
 				let pending = currentState.pendingCity;
@@ -504,15 +500,6 @@ class Play {
 				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 			}
 		});
-
-		function forEachTile(cx, cy, radius, callback) {
-			for (let dx = -N; dx <= N; dx++) {
-				for (let dy = Math.max(-N, -dx - N); dy <= Math.min(N, -dx + N); dy++) {
-					let x = cx + dx, y = cy + dy;
-					callback(x, y);
-				}
-			}
-		}
 
 		// Store vertex and edge coordinates in current state (should decouple from rendering?)
 		currentState.lvx = mvx; currentState.lvy = mvy; currentState.lvd = mvd;
@@ -560,6 +547,32 @@ class Play {
 			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 		}
 
+		// draw hand
+		{
+			ctx.font = "14px sans-serif";
+			ctx.textAlign = "left";
+			ctx.textBaseline = "top";
+			ctx.fillStyle = "#fff";
+
+			for (let piece in this.hand.pieces) {
+				let y = piece * 16;
+				ctx.fillText(Play.pieceNames[piece], width / 2 + 0, y);
+				ctx.fillText(this.hand.pieces[piece], width / 2 + 50, y);
+			}
+
+			for (let resource in this.hand.resources) {
+				let y = -16 + resource * 16;
+				ctx.fillText(Play.resourceNames[resource], width / 2 + 100, y);
+				ctx.fillText(this.hand.resources[resource], width / 2 + 150, y);
+			}
+
+			for (let card in this.hand.cards) {
+				let y = card * 16;
+				ctx.fillText(Play.cardNames[card], width / 2 + 200, y);
+				ctx.fillText(this.hand.cards[card], width / 2 + 320, y);
+			}
+		}
+
 		if (this.tradingOngoing) {
 			ctx.font = "14px sans-serif";
 			ctx.textAlign = "center";
@@ -571,10 +584,10 @@ class Play {
 				let tx, ty;
 				if (i == this.turn) {
 					tx = width * 3 / 4;
-					ty = 100;
+					ty = 200;
 				} else {
 					tx = width * (7 + 2 * j) / 12;
-					ty = 200;
+					ty = 300;
 					j++;
 				}
 
@@ -589,7 +602,7 @@ class Play {
 				ctx.fillText(offerText.join(", "), tx, ty + 16);
 			}
 		}
-	
+
 		for(let i=this.sprites.length-1; i>=0; i--){
 			this.sprites[i].draw();
 			if(this.sprites[i].isDone()){
@@ -597,7 +610,7 @@ class Play {
 				this.sprites.splice(i, 1);
 			}
 		}
-		
+
 	}
 
 	moveRobber(x, y) {
@@ -633,15 +646,18 @@ Play.resourceNames = {
 	[Catan.BRICK]: "brick",
 };
 
-Play.pieceIds = {
+Play.pieceNames = {
 	[Catan.ROAD]: "roads",
 	[Catan.TOWN]: "towns",
 	[Catan.CITY]: "cities",
 };
 
-Play.cardIds = {
-	[Catan.VICTORY_POINT]: "victoryPoints",
+Play.cardNames = {
 	[Catan.KNIGHT]: "knights",
+	[Catan.YEAR_OF_PLENTY]: "year of plenty",
+	[Catan.MONOPOLY]: "monopoly",
+	[Catan.VICTORY_POINT]: "victory points",
+	[Catan.ROAD_BUILDING]: "road building",
 };
 
 let canvas = document.createElement("canvas");
@@ -779,11 +795,11 @@ document.getElementById("discard-btn").addEventListener("click", function (event
 }.bind(lobby));
 
 let showDiscardModal = function () {
-	document.forms.discard.ore.max = +document.getElementById("ore").innerHTML;
-	document.forms.discard.wood.max = +document.getElementById("wood").innerHTML;
-	document.forms.discard.wool.max = +document.getElementById("wool").innerHTML;
-	document.forms.discard.grain.max = +document.getElementById("grain").innerHTML;
-	document.forms.discard.brick.max = +document.getElementById("brick").innerHTML;
+	document.forms.discard.ore.max = currentState.hand.resources[Catan.ORE];
+	document.forms.discard.wood.max = currentState.hand.resources[Catan.WOOD];
+	document.forms.discard.wool.max = currentState.hand.resources[Catan.WOOL];
+	document.forms.discard.grain.max = currentState.hand.resources[Catan.GRAIN];
+	document.forms.discard.brick.max = currentState.hand.resources[Catan.BRICK];
 	document.getElementById('discard-modal').style.display = "block";
 }
 

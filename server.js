@@ -3,7 +3,7 @@
 let EventEmitter = require("events").EventEmitter,
 	Express = require("express"),
 	WebSocket = require("ws"),
-	Catan = require("./catan"),
+	catan = require("./catan"), Catan = catan.Catan, repeat = catan.repeat,
 	Player = require("./player");
 
 let app = Express();
@@ -31,13 +31,12 @@ wss.on("connection", function (ws) {
 	console.log("starting new game");
 
 	let clients = lobby;
+	let players = clients.map((ws) => new Player());
 	lobby = [];
 
 	let board = new Catan();
 	let turn = 0;
 	let currentState;
-
-	let players = clients.map((ws) => new Player());
 
 	let close = new EventEmitter();
 	close.once("close", function (skip) {
@@ -67,19 +66,20 @@ wss.on("connection", function (ws) {
 
 	class Start {
 		constructor() {
+			this.towns = [];
 			this.building = 0;
 			this.phase = 0;
 
 			turn = this.start = [
-				rollDie(), rollDie(), rollDie(), rollDie()
+				rollDie() + rollDie(),
+				rollDie() + rollDie(),
+				rollDie() + rollDie(),
+				rollDie() + rollDie(),
 			].reduce((max, d, i, v) => d > v[max] ? i : max, 0);
 
 			clients.forEach(function (ws, player) {
 				ws.send(JSON.stringify({ message: "start", board: board, player: player }));
 				ws.send(JSON.stringify({ message: "turn", player: turn }));
-
-				// TODO: Distribute initial resources
-				sendResources(ws, players[player]);
 			});
 		}
 
@@ -93,9 +93,13 @@ wss.on("connection", function (ws) {
 			default: sendError(ws, "message"); break;
 
 			case "build":
+				// player needs to build town, then road next to that town
 				if (
 					message.type != [Catan.TOWN, Catan.ROAD][this.building] ||
-					!board.build(message.type, message.x, message.y, message.d, turn, true)
+					!board.build(
+						message.type, message.x, message.y, message.d, turn,
+						true, this.towns[turn]
+					)
 				) {
 					sendError(ws, "build");
 					break;
@@ -109,39 +113,60 @@ wss.on("connection", function (ws) {
 					}));
 				});
 
-				this.building = (this.building + 1) % 2;
+				// save town and switch to next building type
 				if (this.building == 0) {
-					if (this.phase == 0) {
-						let nextTurn = (turn + 1) % clients.length;
-						if (nextTurn == this.start) {
-							this.phase += 1;
-							break;
-						} else {
-							turn = nextTurn;
-						}
-					} else if (this.phase == 1) {
-						if (turn == this.start) {
-							turn = (turn+3) % 4; // Step back one with wraparound
-							player = turn;       // Ensure player matches expected turn
-							currentState = new Play();
-							currentState.onmessage(ws, player, { message: "turn", start: true });
-							break;
-						} else {
-							turn = (turn + clients.length - 1) % clients.length;
-						}
-					}
-
-					clients.forEach(function (ws, player) {
-						ws.send(JSON.stringify({ message: "turn", player: turn }));
-					});
+					this.towns[turn] = { x: message.x, y: message.y, d: message.d };
 				}
+				this.building = (this.building + 1) % 2;
+				if (this.building == 1) { break; }
+
+				let nextTurn;
+				if (this.phase == 0) {
+					// move one player up or go to next phase
+					nextTurn = (turn + 1) % clients.length;
+					if (nextTurn == this.start) {
+						this.phase += 1;
+						break;
+					}
+				} else if (this.phase == 1) {
+					// move one player down or start main game
+					nextTurn = (turn + clients.length - 1) % clients.length;
+					if (turn == this.start) {
+						turn = nextTurn;
+						currentState = new Play();
+						currentState.onmessage(ws, turn, { message: "turn" }, true);
+						break;
+					}
+				}
+				turn = nextTurn;
+
+				clients.forEach(function (ws, player) {
+					ws.send(JSON.stringify({ message: "turn", player: turn }));
+				});
 				break;
 			}
 		}
 	}
 
 	class Play {
-		onmessage(ws, player, message) {
+		constructor() {
+			// each player gets one resource for each town touching a tile
+			board.forEachTile(3, 3, 2, (x, y) => {
+				for (let [vx, vy, vd] of board.cornerVertices(x, y)) {
+					let building = board.buildings[vy][vx][vd];
+					if (!building) { continue; }
+
+					let tile = board.tiles[y][x];
+					players[building.player].resources[tile] += 1;
+				}
+			});
+
+			clients.forEach(function (ws, player) {
+				sendResources(ws, players[player]);
+			});
+		}
+
+		onmessage(ws, player, message, start) {
 			if (player != turn) {
 				sendError(ws, "turn");
 				return;
@@ -151,7 +176,7 @@ wss.on("connection", function (ws) {
 			default: sendError(ws, "message"); break;
 
 			case "offer":
-				let tradeState = new Trade();
+				let tradeState = new Trade(this);
 				if (tradeState.onmessage(ws, player, message)) {
 					currentState = tradeState;
 				}
@@ -181,35 +206,35 @@ wss.on("connection", function (ws) {
 				turn = (turn + 1) % clients.length;
 
 				let dice = rollDie() + rollDie();
-
-				// assign resources
 				for (let [tx, ty] of board.hit[dice]) {
 					let terrain = board.tiles[ty][tx];
 					for (let [vx, vy, vd] of board.cornerVertices(tx, ty)) {
-						// If robber in space, don't assign resources
-						if (board.robber[0] == vx && board.robber[1] == vy) {
-							continue;
-						}
+						// the robber blocks its tile from producing resources
+						let [rx, ry] = board.robber;
+						if (rx == vx && ry == vy) { continue; }
+
 						let building = board.buildings[vy][vx][vd];
-						if (building) {
-							let amount;
-							if (building.type == Catan.TOWN) {
-								amount = 1;
-							} else if (building.type == Catan.CITY) {
-								amount = 2;
-							}
-							players[building.player].resources[terrain] += amount;
+						if (!building) { continue; }
+
+						let amount;
+						if (building.type == Catan.TOWN) {
+							amount = 1;
+						} else if (building.type == Catan.CITY) {
+							amount = 2;
 						}
+						players[building.player].resources[terrain] += amount;
 					}
 				}
 
 				clients.forEach(function (ws, player) {
-					ws.send(JSON.stringify({ message: "turn", player: turn, dice: dice, start: message.start }));
+					ws.send(JSON.stringify({
+						message: "turn", player: turn, dice: dice, start: start
+					}));
 					sendResources(ws, players[player]);
 				});
 
 				if (dice == 7) {
-					currentState = new Robber();
+					currentState = new Robber(this);
 				}
 				break;
 			}
@@ -217,13 +242,14 @@ wss.on("connection", function (ws) {
 	}
 
 	class Trade {
-		constructor() {
+		constructor(play) {
+			this.play = play;
 			this.offers = [];
 		}
 
 		onmessage(ws, player, message) {
 			if (player != turn && message.message != "offer") {
-				sendError(ws, "confirm");
+				sendError(ws, "turn");
 				return false;
 			}
 
@@ -231,12 +257,16 @@ wss.on("connection", function (ws) {
 			default: sendError(ws, "message"); break;
 
 			case "offer":
-				if (countResources(offer) == 0 || !players[offeringPlayer].hasResources(offer)) {
+				if (
+					countResources(message.offer) == 0 ||
+					!players[player].hasResources(message.offer)
+				) {
 					sendError(ws, "offer");
 					return false;
 				}
 
-				this.offers[offeringPlayer] = offer;
+				this.offers[player] = message.offer;
+				let offeringPlayer = player;
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
 						message: "offer", offer: offer, player: offeringPlayer
@@ -260,7 +290,7 @@ wss.on("connection", function (ws) {
 					ws.send(JSON.stringify({ message: "end" }));
 				});
 
-				currentState = new Play();
+				currentState = this.play;
 				break;
 
 			case "cancel":
@@ -268,7 +298,7 @@ wss.on("connection", function (ws) {
 					ws.send(JSON.stringify({ message: "end" }));
 				});
 
-				currentState = new Play();
+				currentState = this.play;
 				break;
 			}
 
@@ -277,7 +307,9 @@ wss.on("connection", function (ws) {
 	}
 
 	class Robber {
-		constructor() {
+		constructor(play) {
+			this.play = play;
+
 			this.robberMoved = false;
 			this.resourceStolen = false;
 			this.resourcesToDiscard = [];
@@ -334,7 +366,7 @@ wss.on("connection", function (ws) {
 				for (let [vx, vy, vd] of board.cornerVertices(message.x, message.y)) {
 					let building = board.buildings[vy][vx][vd];
 					if (!building || building.player == turn || targets.indexOf(building.player) != -1) { continue; }
-					
+
 					if (countResources(players[building.player].resources) > 0) {
 						console.log("adding target: " + building.player);
 						targets.push(building.player);
@@ -364,7 +396,7 @@ wss.on("connection", function (ws) {
 				let allResources = [];
 				let playerResources = players[message.player].resources;
 				for (let resourceType in playerResources) {
-					allResources.push.apply(allResources, Catan.repeat(resourceType, playerResources[resourceType]));
+					allResources.push.apply(allResources, repeat(resourceType, playerResources[resourceType]));
 				}
 
 				// Choose a random resource to steal
@@ -381,7 +413,7 @@ wss.on("connection", function (ws) {
 					let stealGood = { message: "stealGood" };
 					ws.send(JSON.stringify(stealGood));
 				});
-				
+
 				this.resourceStolen = true;
 				break;
 			}
@@ -390,7 +422,7 @@ wss.on("connection", function (ws) {
 			let toDiscard = this.resourcesToDiscard.reduce((x, y) => x + y, 0);
 			// TODO: re-add discard check
 			if (toDiscard == 0 && this.robberMoved && this.resourceStolen) {
-				currentState = new Play();
+				currentState = play;
 			}
 
 			return;

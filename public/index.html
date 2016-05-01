@@ -36,51 +36,21 @@
 					<button name="accept3">Accept Player 3's Offer</button>
 				</div>
 			</form>
+		</div>
 
-			<div id="resources">
-				<table>
-					<thead>
-						<tr>
-							<th>Resource:</th>
-							<th>Count:</th>
-							<th>Other:</th>
-							<th>Value:</th>
-						</tr>          
-					</thead>
-					<tbody>
-						<tr>
-							<td>Ore</td><td><td id="ore">0</td><td>Victory Points</td><td id="victoryPoints">0</td>
-						</tr>
-						<tr>
-							<td>Wood</td><td><td id="wood">0</td><td>Roads Remaining</td><td id="roads">15</td>
-						</tr>
-						<tr>
-							<td>Wool</td><td><td id="wool">0</td><td>Towns Remaining</td><td id="towns">5</td>
-						</tr>
-						<tr>
-							<td>Grain</td><td><td id="grain">0</td><td>Cities Remaining</td><td id="cities">4</td>
-						</tr>
-						<tr>
-							<td>Brick</td><td><td id="brick">0</td><td>Knights</td><td id="knights">0</td>
-						</tr>
-					</tbody>
-				</table>
+		<div id="discard-modal" class="modal">
+			<div class="modal-content">
+				<form name="discard">
+					<h2 id="discard-amount">Discard N cards.</h2>
+					<label for="discard-ore">Discard Ore:</label>     <input type="number" id="discard-ore"   name="ore"   value="0" min="0"></input>
+					<label for="discard-wood">Discard Wood:</label>   <input type="number" id="discard-wood"  name="wood"  value="0" min="0"></input>
+					<label for="discard-wool">Discard Wool:</label>   <input type="number" id="discard-wool"  name="wool"  value="0" min="0"></input>
+					<label for="discard-grain">Discard Grain:</label> <input type="number" id="discard-grain" name="grain" value="0" min="0"></input>
+					<label for="discard-brick">Discard Brick:</label> <input type="number" id="discard-brick" name="brick" value="0" min="0"></input>
+					<button type="button" name="discard-btn" id="discard-btn">Discard!</button>
+				</form>
 			</div>
 		</div>
-				
-	<div id="discard-modal" class="modal">
-		<div class="modal-content">
-			<form name="discard">
-				<h2 id="discard-amount">Discard N cards.</h2>
-				<label for="discard-ore">Discard Ore:</label>     <input type="number" id="discard-ore"   name="ore"   value="0" min="0"></input>
-				<label for="discard-wood">Discard Wood:</label>   <input type="number" id="discard-wood"  name="wood"  value="0" min="0"></input>
-				<label for="discard-wool">Discard Wool:</label>   <input type="number" id="discard-wool"  name="wool"  value="0" min="0"></input>
-				<label for="discard-grain">Discard Grain:</label> <input type="number" id="discard-grain" name="grain" value="0" min="0"></input>
-				<label for="discard-brick">Discard Brick:</label> <input type="number" id="discard-brick" name="brick" value="0" min="0"></input>
-				<button type="button" name="discard-btn" id="discard-btn">Discard!</button>
-			</form>
-		</div>
-	</div>
 
 		<script src="js/bundle.js"></script>
 	</body>

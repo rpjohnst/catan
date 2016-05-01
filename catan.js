@@ -68,61 +68,50 @@ class Catan {
 		}
 	}
 
-	build(type, x, y, d, player, pregame) {
+	build(type, x, y, d, player, pregame, adjacent) {
 		return {
 			[Catan.ROAD]: this.buildRoad,
 			[Catan.TOWN]: this.buildTown,
 			[Catan.CITY]: this.buildCity,
-		}[type].apply(this, [x, y, d, player, pregame]);
+		}[type].apply(this, [x, y, d, player, pregame, adjacent]);
 	}
 
-	validRoad(x, y, d, player, pregame) {
-		// a road must be placed on an empty edge next to a road or settlement of the same player
-		// during pregame, a road must be next to a settlement of the same player
-
-		if(x < 0 || y < 0 || x > 6 || y > 5){
-			return false;
-		}
-
-		// can't occupy spot of existing road
+	validRoad(x, y, d, player, pregame, town) {
+		// a road must be placed on an existing, empty edge
+		if (!this.roads[y] || !this.roads[y][x]) { return false; }
 		if (this.roads[y][x][d] != null) { return false; }
 
-		let touches = false;
-		let valid = false;
-		for (let [ex, ey, ed] of this.endpointVertices(x, y, d)) {
-						
-			// Ensure there isn't an endpoint surrounded entirely by ocean			
-			let land = false;
-			for(let [tx, ty] of this.touchesTiles(ex, ey, ed)){
-				if(this.tiles[ty] && this.tiles[ty][tx] && this.tiles[ty][tx] != Catan.OCEAN)
-					land = true;
+		// a road must touch land
+		let land = false;
+		for (let [tx, ty] of this.joiningTiles(x, y, d)) {
+			if (!this.tiles[ty] || !this.tiles[ty][tx]) { continue; }
+			if (this.tiles[ty][tx] != Catan.OCEAN) {
+				land = true;
 			}
-			if(!land) return false;
-			
-			if(!this.buildings[ey] || !this.buildings[ey][ex]) continue;
+		}
+		if (!land) { return false; }
+
+		// a road must be next to a road or town of the same player
+		// during pregame, a road must be next to the player's last town (given by `town`)
+		for (let [ex, ey, ed] of this.endpointVertices(x, y, d)) {
+			if (!this.buildings[ey] || !this.buildings[ey][ex]) { continue; }
 			if (this.buildings[ey][ex][ed] && this.buildings[ey][ex][ed].player == player) {
-				if(pregame && this.mustTouch) {
-					touches = touches || (this.mustTouch.y == ey && this.mustTouch.x == ex && this.mustTouch.d == ed );
-					if(!touches) { continue; }
-				}
-				valid = true;
+				if (!pregame) { return true; }
+				else if (town && ex == town.x && ey == town.y && ed == town.d) { return true; }
 			} else if (!pregame) {
 				for (let [px, py, pd] of this.protrudeEdges(ex, ey, ed)) {
-					if(!this.roads[py] || !this.roads[py][px]) continue;
-					if (this.roads[py][px][pd] == player) { valid = true; }
+					if (!this.roads[py] || !this.roads[py][px]) { continue; }
+					if (this.roads[py][px][pd] == player) { return true; }
 				}
 			}
 		}
-		
 
-		return valid;
+		return false;
 	}
 
 	// an edge is specified as a tile and either west, north, or east (0/1/2)
-	buildRoad(x, y, d, player, pregame) {
-		let valid = this.validRoad(x, y, d, player, pregame);
-		if (!valid) { return false; }
-		if(this.mustTouch) { delete this.mustTouch; }
+	buildRoad(x, y, d, player, pregame, adjacent) {
+		if (!this.validRoad(x, y, d, player, pregame, adjacent)) { return false; }
 		this.roads[y][x][d] = player;
 		return true;
 	}
@@ -183,11 +172,13 @@ class Catan {
 		return true;
 	}
 
-	touchesTiles(x, y, d) {
-		//(u,v,L) → (u,v) (u-1,v) (u-1,v+1)
-		//(u,v,R) → (u+1,v) (u+1,v-1) (u,v)
-		if (d == 0) { return [[x, y], [x-1, y], [x-1, y+1]]; }
-		else if (d == 1) { return [[x+1, y], [x+1, y-1], [x,y]]; }
+	forEachTile(cx, cy, N, callback) {
+		for (let dx = -N; dx <= N; dx++) {
+			for (let dy = Math.max(-N, -dx - N); dy <= Math.min(N, -dx + N); dy++) {
+				let x = cx + dx, y = cy + dy;
+				callback(x, y);
+			}
+		}
 	}
 
 	// corner vertices of a tile
@@ -198,10 +189,11 @@ class Catan {
 		];
 	}
 
-	// adjacent vertices of a vertex
-	adjacentVertices(x, y, d) {
-		if (d == 0) { return [[x - 1, y + 1, 1], [x - 1, y, 1], [x - 2, y + 1, 1]]; }
-		else if (d == 1) { return [[x + 2, y - 1, 0], [x + 1, y - 1, 0], [x + 1, y, 0]]; }
+	// joining tiles of an edge
+	joiningTiles(x, y, d) {
+		if (d == 0) { return [[x, y], [x - 1, y + 1]]; }
+		else if (d == 1) { return [[x, y + 1], [x, y]]; }
+		else if (d == 2) { return [[x + 1, y], [x, y]]; }
 	}
 
 	// endpoint vertices of an edge
@@ -211,10 +203,22 @@ class Catan {
 		else if (d == 2) { return [[x, y, 1], [x + 1, y, 0]]; }
 	}
 
+	// touching tiles of a vertex
+	touchesTiles(x, y, d) {
+		if (d == 0) { return [[x, y], [x-1, y], [x-1, y+1]]; }
+		else if (d == 1) { return [[x+1, y], [x+1, y-1], [x,y]]; }
+	}
+
 	// protruding edges from a vertex
 	protrudeEdges(x, y, d) {
 		if (d == 0) { return [[x, y, 0], [x - 1, y, 2], [x - 1, y, 1]]; }
 		else if (d == 1) { return [[x + 1, y - 1, 1], [x + 1, y - 1, 0], [x, y, 2]]; }
+	}
+
+	// adjacent vertices of a vertex
+	adjacentVertices(x, y, d) {
+		if (d == 0) { return [[x - 1, y + 1, 1], [x - 1, y, 1], [x - 2, y + 1, 1]]; }
+		else if (d == 1) { return [[x + 2, y - 1, 0], [x + 1, y - 1, 0], [x + 1, y, 0]]; }
 	}
 };
 
@@ -274,5 +278,5 @@ function rotate(array, count) {
 	return array;
 }
 
-module.exports = Catan;
+module.exports.Catan = Catan;
 module.exports.repeat = repeat;

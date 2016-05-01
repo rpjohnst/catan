@@ -1,6 +1,6 @@
 "use strict";
 
-let Catan = require("./catan");
+let Catan = require("./catan").Catan;
 
 const COST = {
 	[Catan.ROAD]: { [Catan.BRICK]: 1, [Catan.WOOD]: 1 },

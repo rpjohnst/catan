@@ -1,21 +1,16 @@
 TODO:
 [catan.js]
-* Remove hard-coded initial board state
-* Add interface and functions to handle setting up initial board state (validity functions are g2g)
-* Handle rolling 7s: Fill in stubs for discard and move_thief (+ steal function?)
 * Handle playing development cards (can reuse move_thief for soldier)
 
 [client/app.js]
 * Delete temporary functions used for the horrible placeholder interface
 
 [UI]
-* Replace placeholder UI with ability to click vertices/edges on the board
 * Consider improving or adding the following assets:
 	Thief
 	Settlement
 	City
 	Chit (Replace text with sprite)
-	Mini icons for each resource (for brief animation when harvested and menus)
 	Card for each resource
 	Card for each development card
 	Custom art for each tile instead of tinting generic hexagons
@@ -24,7 +19,6 @@ TODO:
 * Trading menu(s)
 
 [...]
-* Functions to handle trading
 * Chat
 * Ports
 * Add sound effects
