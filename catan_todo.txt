@@ -1,0 +1,37 @@
+TODO:
+[catan.js]
+* Remove hard-coded initial board state
+* Add interface and functions to handle setting up initial board state (validity functions are g2g)
+* Handle rolling 7s: Fill in stubs for discard and move_thief (+ steal function?)
+* Handle playing development cards (can reuse move_thief for soldier)
+* Handle a lobby system (not really necessary on this front-end version)
+
+[driver.js]
+* Delete temporary functions used for the horrible placeholder interface
+
+[player.js]
+* Fix hard-coded width/height for town sprite
+
+[UI]
+* Replace placeholder UI with ability to click vertices/edges on the board
+* Consider improving or adding the following assets:
+	Thief
+	Settlement
+	City
+	Chit (Replace text with sprite)
+	Mini icons for each resource (for brief animation when harvested and menus)
+	Card for each resource
+	Card for each development card
+	Custom art for each tile instead of tinting generic hexagons
+	Dice
+
+* Trading menu(s)
+* Offset text for chits appropriately (unless using sprite?)
+
+[...]
+* Functions to handle trading
+* Ports
+* Add sound effects
+* Compute longest road
+* Add function checking for win condition and add win/reset screen
+* Migrate to Node.js/Websockets for handling multiplayer
