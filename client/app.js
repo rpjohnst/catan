@@ -161,6 +161,15 @@ class Play {
 		this.vertex = [0, 0, 0];
 		this.edge = [0, 0, 0];
 
+		// Create dev card sprite array
+		this.devCardSprites = [];
+		for (let card in this.hand.cards) {
+			card = +card;
+			let cardSprite = new DevelopmentCard(0, 300, card, this.assets, ctx);
+			cardSprite.x = canvas.width / 2 + card * (cardSprite.image.width * cardSprite.scale + 10);
+			this.devCardSprites[card] = cardSprite;
+		}
+
 		this.ws.onmessage = (event) => {
 			console.log(event.data);
 
@@ -458,11 +467,18 @@ class Play {
 				ctx.fillText(this.hand.resources[resource], width / 2 + 40 + 140, y);
 			}
 
+			let oldTextAlign = ctx.textAlign;
+			ctx.textAlign = "center";
 			for (let card in this.hand.cards) {
-				let y = card * 16;
-				ctx.fillText(Play.cardNames[card], width / 2 + 40 + 170, y);
-				ctx.fillText(this.hand.cards[card], width / 2 + 40 + 290, y);
+				if (this.hand.cards[card] > 0) {
+					let curCard = this.devCardSprites[card];
+					curCard.draw();
+					let x = curCard.x + curCard.image.width * curCard.scale / 2;
+					let y = curCard.y + curCard.image.height * curCard.scale + 10;
+					ctx.fillText("x" + this.hand.cards[card], x, y);
+				}
 			}
+			ctx.textAlign = oldTextAlign;
 
 			if (this.tradingOngoing) {
 				ctx.fillText("Offers:", width / 2 + 40, 100);
@@ -499,9 +515,6 @@ class Play {
 			currentState.steal(tx, ty);
 			return;
 		}
-
-		let devtest = new DevelopmentCard(1, 0, 0, this.assets, ctx);
-		devtest.draw();
 
 		let type, x, y, d;
 		switch (this.action) {

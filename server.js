@@ -277,6 +277,7 @@ wss.on("connection", function (ws) {
 				for(let card of this.pendingCards){
 					players[player].cards[card]++;	
 				}
+				this.pendingCards = [];
 
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
