@@ -19,6 +19,28 @@ const playerColors = ["#ff0000", "#00bcff", "#ffbc00", "#008000"];
 
 const server = "ws://" + window.location.hostname + ":8081";
 
+class DevelopmentCard {
+	constructor(x, y, type, assets, ctx){
+		switch(type){
+			case Catan.KNIGHT:					this.image = assets.placeholder; break;
+			case Catan.MONOPOLY:				this.image = assets.placeholder; break;
+			case Catan.YEAR_OF_PLENTY:	this.image = assets.placeholder; break;
+			case Catan.VICTORY_POINT: 	this.image = assets.placeholder; break;
+			case Catan.ROAD_BUILDING: 	this.image = assets.placeholder; break;
+		}
+		this.x = x;
+		this.y = y;
+		this.ctx = ctx;
+		this.scale = 0.5;
+	}
+
+	draw(){
+		this.ctx.drawImage(this.image, this.x, this.y, this.image.width * this.scale, this.image.height * this.scale);
+		//ctx.drawImage(this.image, this.x - this.image.width * this.scale / 2, this.y - this.image.height * this.scale / 2, 
+									//this.image.width * this.scale, this.image.height * this.scale);
+	}
+}
+
 class Lobby {
 	constructor(ctx) {
 		this.ctx = ctx;
@@ -32,6 +54,7 @@ class Lobby {
 			grain_sm: new Image(),
 			wool_sm: new Image(),
 			bricks_sm: new Image(),
+			placeholder: new Image(),
 		};
 		this.assets.hexagon.addEventListener("load", () => {
 			tileColors.forEach((color, i) => {
@@ -476,6 +499,9 @@ class Play {
 			currentState.steal(tx, ty);
 			return;
 		}
+
+		let devtest = new DevelopmentCard(1, 0, 0, this.assets, ctx);
+		devtest.draw();
 
 		let type, x, y, d;
 		switch (this.action) {
