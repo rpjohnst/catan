@@ -29,8 +29,12 @@ h2 { padding: 0; }
 }
 .chat
 {	
-	height: 570px;
+	height: 550px;
 	overflow-y: scroll;
+}
+
+.chat-container input {
+	width: 230px;
 }
 
 .container

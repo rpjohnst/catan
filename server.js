@@ -55,7 +55,15 @@ wss.on("connection", function (ws) {
 			console.log("received from player %d: %s", player, messageJson);
 
 			let message = JSON.parse(messageJson);
-			currentState.onmessage(ws, player, message);
+			if (message.message === "chat") {
+				let safeText = escapeHtml(message.text);
+				let sendingPlayer = player;
+				clients.forEach(function (ws, player) {
+					ws.send(JSON.stringify({ message: "chat", text: safeText.substring(0,1000), sender: sendingPlayer }));
+				});
+			} else {
+				currentState.onmessage(ws, player, message);
+			}
 		});
 
 		ws.on("close", function (code, message) {
@@ -444,4 +452,16 @@ wss.on("connection", function (ws) {
 
 function rollDie() {
 	return Math.floor(Math.random() * 6 + 1);
+}
+
+function escapeHtml(text) {
+  var map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+
+  return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 }

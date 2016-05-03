@@ -15,7 +15,7 @@ let run = function (state) {
 };
 
 const tileColors = ["#f4a460", "#666666", "#003200", "#006400", "#ffff00", "#660000", "#0000ff"];
-const playerColors = ["#ff0000", "#ffffff", "#0000ff", "#00ff00"];
+const playerColors = ["#ff0000", "#ff1493", "#0000ff", "#00ff00"];
 
 const server = "ws://" + window.location.hostname + ":8081";
 
@@ -216,6 +216,17 @@ class Play {
 			case "robber":
 				this.board.robber = [message.x, message.y];
 				if (this.action == "steal") { delete this.action; }
+				break;
+				
+			case "chat":
+				let chatBox = document.getElementById("chat");
+				let messageElem = document.createElement("p");
+				let playerName = document.createElement("span");
+				playerName.innerHTML = "Player " + message.sender + ": ";
+				playerName.style.color = playerColors[message.sender];
+				messageElem.appendChild(playerName);
+				messageElem.innerHTML += message.text;
+				chatBox.appendChild(messageElem);
 				break;
 
 			case "error":
@@ -722,6 +733,18 @@ function showDiscardModal(count) {
 	form.wool.max = currentState.hand.resources[Catan.WOOL];
 	form.grain.max = currentState.hand.resources[Catan.GRAIN];
 	form.brick.max = currentState.hand.resources[Catan.BRICK];
+}
+
+// chat
+{
+	let form = document.forms.chat;
+	form.addEventListener("submit", function (event) {
+		event.preventDefault();
+		
+		currentState.ws.send(JSON.stringify({ message: "chat", text: form.message.value }));
+		form.reset();
+		
+	});
 }
 
 let ctx = canvas.getContext("2d");
