@@ -2,7 +2,8 @@
 
 let Catan = require("../catan").Catan,
 	Player = require("../player"),
-	Hex = require("./hex");
+	Hex = require("./hex"),
+	ResourceSprite;
 
 let currentState;
 let run = function (state) {
@@ -17,51 +18,6 @@ const tileColors = ["#f4a460", "#666666", "#003200", "#006400", "#ffff00", "#660
 const playerColors = ["#ff0000", "#ffffff", "#0000ff", "#00ff00"];
 
 const server = "ws://" + window.location.hostname + ":8081";
-
-class ResourceSprite {
-	constructor(sx, sy, fx, fy, resource, assets, ctx){
-
-		switch(resource){
-			case Catan.ORE:		this.image = assets.ore_sm; break;
-			case Catan.WOOD:	this.image = assets.logs_sm; break;
-			case Catan.WOOL:	this.image = assets.wool_sm; break;
-			case Catan.GRAIN:	this.image = assets.grain_sm; break;
-			case Catan.BRICK: this.image = assets.bricks_sm; break;
-		}
-		this.ctx = ctx;
-		this.x = sx; this.fx = fx;
-		this.y = sy; this.fy = fy;
-		this.speed = 1;
-		this.scale = 0.5;
-		this.drawCount = 0;
-	}
-
-	draw() {
-		let ctx = this.ctx, width = ctx.canvas.clientWidth, height = ctx.canvas.clientHeight;
-		this.drawCount++;
-
-		ctx.drawImage(this.image, this.x - this.image.width * this.scale / 2, this.y - this.image.height * this.scale / 2, 
-									this.image.width * this.scale, this.image.height * this.scale);
-
-		let N = 125;
-		if(this.drawCount < N){
-			this.scale = 0.5 + (this.drawCount/N * 0.5);
-			return; // Grow to full size but stay still within first N draw calls
-		}
-
-		if(this.x > this.fx)
-			this.x -= this.speed;
-		else if(this.x < this.fx)
-			this.x += this.speed;
-
-		if(this.y > this.fy)
-			this.y -= this.speed;
-		else if(this.y < this.fy)
-			this.y += this.speed;
-	}
-
-	isDone() { return Math.abs(this.x - this.fx) <= 1 && Math.abs(this.y - this.fy) <= 1; }
-}
 
 class Lobby {
 	constructor(ctx) {
@@ -212,9 +168,7 @@ class Play {
 						if (!this.board.buildings[cy][cx][cd]) { continue; }
 
 						let [vpx, vpy] = Hex.vertexToPixels(cx, cy, cd);
-						this.sprites.push(new ResourceSprite(
-							tpx, tpy, vpx, vpy, resource, this.assets, this.ctx
-						));
+						this.sprites.push(new ResourceSprite(resource, [tpx, tpy], [vpx, vpy]));
 					}
 				}
 				break;
@@ -408,6 +362,27 @@ class Play {
 			}
 		});
 
+		// draw resource icons
+		for (let i = this.sprites.length - 1; i >= 0; i--) {
+			let sprite = this.sprites[i];
+			if (sprite.move()) { this.sprites.splice(i, 1); }
+
+			let image;
+			switch (sprite.type) {
+			case Catan.ORE: image = this.assets.ore_sm; break;
+			case Catan.WOOD: image = this.assets.logs_sm; break;
+			case Catan.WOOL: image = this.assets.wool_sm; break;
+			case Catan.GRAIN: image = this.assets.grain_sm; break;
+			case Catan.BRICK: image = this.assets.bricks_sm; break;
+			}
+
+			let [x, y] = sprite.pos, scale = sprite.scale;
+			ctx.drawImage(
+				image,
+				x - scale * image.width / 2, y - scale * image.height / 2,
+				scale * image.width, scale * image.height
+			);
+		}
 
 		// draw robber
 		if (this.action != "moveRobber") {
@@ -469,14 +444,6 @@ class Play {
 					}
 					offerText.forEach((text, row) => ctx.fillText(text, tx, ty + 16 * (row + 1)));
 				}
-			}
-		}
-
-		for(let i=this.sprites.length-1; i>=0; i--){
-			this.sprites[i].draw();
-			if(this.sprites[i].isDone()){
-				delete this.sprites[i];
-				this.sprites.splice(i, 1);
 			}
 		}
 	}
@@ -578,6 +545,32 @@ Play.cardNames = {
 	[Catan.MONOPOLY]: "monopoly",
 	[Catan.VICTORY_POINT]: "victory points",
 	[Catan.ROAD_BUILDING]: "road building",
+};
+
+ResourceSprite = class {
+	constructor(type, start, end) {
+		this.type = type;
+		this.start = start;
+		this.end = end;
+
+		this.count = 0;
+	}
+
+	move() {
+		let t = this.count / 120;
+		this.count += 1;
+
+		this.scale = lerp(0.5, 1, 3 * t);
+		this.pos = lerp2(this.start, this.end, 1.2 * t - 0.2);
+
+		return t > 1;
+
+		function lerp(a, b, t) {
+			t = Math.min(Math.max(0, t), 1);
+			return (1 - t) * a + t * b;
+		}
+		function lerp2([ax, ay], [bx, by], t) { return [lerp(ax, bx, t), lerp(ay, by, t)]; }
+	}
 };
 
 let canvas = document.createElement("canvas");
