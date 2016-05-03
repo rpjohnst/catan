@@ -1,7 +1,7 @@
 let radius = 45,
 	hexagon_narrow_width = 3 / 2 * radius,
 	hexagon_height = 2 * radius * Math.sin(Math.PI / 3),
-	width = 1050, height = 525;
+	width = 960, height = 640;
 
 module.exports = { radius: radius, width: width, height: height, };
 

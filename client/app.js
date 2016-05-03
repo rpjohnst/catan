@@ -292,7 +292,7 @@ class Play {
 			let [px, py] = Hex.tileToPixels(x, y);
 
 			let image = this.assets.hexagons[this.board.tiles[y][x]] || this.assets.hexagon;
-			let width = radius * 2 - 5, height = radius * 2 - 10;
+			let width = 2 * Hex.radius - 5, height = 2 * Hex.radius * Math.sin(Math.PI / 3) - 5;
 			ctx.drawImage(image, px - width / 2, py - height / 2, width, height);
 		});
 
@@ -403,7 +403,6 @@ class Play {
 			}
 		});
 
-		}
 
 		// draw robber
 		if (this.action != "moveRobber") {
@@ -420,7 +419,7 @@ class Play {
 			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 		}
 
-		// draw hand
+		// draw info
 		{
 			ctx.font = "14px sans-serif";
 			ctx.textAlign = "left";
@@ -429,50 +428,42 @@ class Play {
 
 			for (let piece in this.hand.pieces) {
 				let y = piece * 16;
-				ctx.fillText(Play.pieceNames[piece], width / 2 + 0, y);
-				ctx.fillText(this.hand.pieces[piece], width / 2 + 50, y);
+				ctx.fillText(Play.pieceNames[piece], width / 2 + 40 + 0, y);
+				ctx.fillText(this.hand.pieces[piece], width / 2 + 40 + 50, y);
 			}
 
 			for (let resource in this.hand.resources) {
 				let y = -16 + resource * 16;
-				ctx.fillText(Play.resourceNames[resource], width / 2 + 100, y);
-				ctx.fillText(this.hand.resources[resource], width / 2 + 150, y);
+				ctx.fillText(Play.resourceNames[resource], width / 2 + 40 + 100, y);
+				ctx.fillText(this.hand.resources[resource], width / 2 + 40 + 150, y);
 			}
 
 			for (let card in this.hand.cards) {
 				let y = card * 16;
-				ctx.fillText(Play.cardNames[card], width / 2 + 200, y);
-				ctx.fillText(this.hand.cards[card], width / 2 + 320, y);
+				ctx.fillText(Play.cardNames[card], width / 2 + 40 + 200, y);
+				ctx.fillText(this.hand.cards[card], width / 2 + 40 + 320, y);
 			}
-		}
 
-		if (this.tradingOngoing) {
-			ctx.font = "14px sans-serif";
-			ctx.textAlign = "center";
-			ctx.textBaseline = "top";
-			ctx.fillStyle = "0xfff";
-
-			let j = 0;
-			for (let i = 0; i < 4; i++) {
-				let tx, ty;
-				if (i == this.turn) {
-					tx = width * 3 / 4;
-					ty = 200;
-				} else {
-					tx = width * (7 + 2 * j) / 12;
-					ty = 300;
-					j++;
-				}
-
-				ctx.fillText("Player " + i + " Offers:", tx, ty);
-				let offerText = [];
-				let offer = this.tradingOffers[i];
-				for (let resourceType in offer) {
-					if (offer[resourceType] > 0) {
-						offerText.push(offer[resourceType].toString() + " " + Play.resourceNames[resourceType]);
+			if (this.tradingOngoing) {
+				let j = 0;
+				for (let i = 0; i < 4; i++) {
+					let tx, ty;
+					if (i == this.turn) {
+						[tx, ty] = [width / 2 + 40, 100];
+					} else {
+						[tx, ty] = [width / 2 + 40 + 120 * j, 100 + 16 * 7];
+						j++;
 					}
+
+					ctx.fillText("Player " + i + " Offers:", tx, ty);
+					let offerText = [];
+					let offer = this.tradingOffers[i];
+					for (let kind in offer) {
+						if (!offer[kind]) { continue; }
+						offerText.push(offer[kind] + " " + Play.resourceNames[kind]);
+					}
+					offerText.forEach((text, row) => ctx.fillText(text, tx, ty + 16 * (row + 1)));
 				}
-				ctx.fillText(offerText.join(", "), tx, ty + 16);
 			}
 		}
 
@@ -585,17 +576,11 @@ Play.cardNames = {
 };
 
 let canvas = document.createElement("canvas");
-canvas.width = 1050;
-canvas.height = 525;
+canvas.width = Hex.width;
+canvas.height = Hex.height;
 document.body.appendChild(canvas);
 
 // board
-
-let restoreDefaultButtons = function () {
-	document.getElementById("buildRoad").innerHTML = "Build Road";
-	document.getElementById("buildTown").innerHTML = "Build Town";
-	document.getElementById("buildCity").innerHTML = "Build City";
-}
 
 canvas.addEventListener("mousemove", function (event) {
 	let rect = canvas.getBoundingClientRect();
@@ -612,41 +597,54 @@ canvas.addEventListener("click", function (event) {
 	currentState.click();
 });
 
+// building
+{
+	let form = document.forms.building;
 
+	let modalActions = ["moveRobber", "steal"];
 
-["buildRoad", "buildTown", "buildCity"].forEach(function (id) {
-	document.getElementById(id).addEventListener("click", function (event) {
-		event.preventDefault();
-		if (currentState.action == "moveRobber" || currentState.action == "stealing") {
-			return;
-		}
-		restoreDefaultButtons();
-		if (currentState.action == id) {
-			delete currentState.action;
-		} else {
+	["buildRoad", "buildTown", "buildCity"].forEach(function (id, _, ids) {
+		form[id].addEventListener("click", function (event) {
+			event.preventDefault();
+			if (modalActions.indexOf(currentState.action) > -1) { return; }
+
+			if (currentState.action == id) {
+				restoreDefaultButtons();
+				delete currentState.action;
+				return;
+			}
+
 			currentState.action = id;
-			document.getElementById(id).innerHTML = "Cancel";
-		}		
+			form[id].innerHTML = "Cancel";
+		});
 	});
-});
 
-document.getElementById("endTurn").addEventListener("click", function (event) {
-	event.preventDefault();
-	if (currentState.action == "moveRobber" || currentState.action == "stealing") {
-		return;
-	}
+	form.endTurn.addEventListener("click", function (event) {
+		event.preventDefault();
+		if (modalActions.indexOf(currentState.action) > -1) { return; }
 
-	if (currentState.action) {
-		delete currentState.action;
-		restoreDefaultButtons();
-	}
-	currentState.endTurn();	
-});
+		if (currentState.action) {
+			restoreDefaultButtons();
+			delete currentState.action;
+		}
 
+		currentState.endTurn();
+	});
+}
+
+function restoreDefaultButtons() {
+	let form = document.forms.building;
+	form.buildRoad.innerHTML = "Build Road";
+	form.buildTown.innerHTML = "Build Town";
+	form.buildCity.innerHTML = "Build City";
+}
+
+// trading
 {
 	let form = document.forms.trading;
 
 	form.offer.addEventListener("click", function (event) {
+		event.preventDefault();
 		currentState.offer({
 			[Catan.ORE]: +form.ore.value,
 			[Catan.WOOD]: +form.wood.value,
@@ -654,26 +652,22 @@ document.getElementById("endTurn").addEventListener("click", function (event) {
 			[Catan.GRAIN]: +form.grain.value,
 			[Catan.BRICK]: +form.brick.value,
 		});
-		event.preventDefault();
 	});
 
 	form.cancel.addEventListener("click", function (event) {
-		currentState.cancel();
 		event.preventDefault();
+		currentState.cancel();
 	});
 
 	[
 		form.accept0, form.accept1, form.accept2, form.accept3
 	].forEach(function (button, i) {
 		button.addEventListener("click", function (event) {
-			currentState.confirm(i);
 			event.preventDefault();
+			currentState.confirm(i);
 		});
 	});
 }
-
-let ctx = canvas.getContext("2d");
-let lobby = new Lobby(ctx);
 
 // discarding
 {
@@ -718,4 +712,6 @@ function showDiscardModal(count) {
 	form.brick.max = currentState.hand.resources[Catan.BRICK];
 }
 
+let ctx = canvas.getContext("2d");
+let lobby = new Lobby(ctx);
 run(lobby);
