@@ -194,7 +194,7 @@ class Play {
 				this.dice = message.dice;				
 				if (message.start) {
 					this.pregame = false;
-					delete this.lastTown;
+					this.lastTown = [];
 				}
 
 				if (!this.dice) { break; }
@@ -237,6 +237,10 @@ class Play {
 				);
 				break;
 
+			case "end":
+				currentState = new Lobby(ctx);
+				break;
+
 			// trading messages
 
 			case "offer":
@@ -244,8 +248,9 @@ class Play {
 				this.tradingOffers[message.player] = message.offer;
 				break;
 
-			case "end":
-				currentState = new Lobby(ctx);
+			case "confirm":
+				this.tradingOngoing = false;
+				this.tradingOffers = [];
 				break;
 
 			// robber messages

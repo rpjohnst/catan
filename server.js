@@ -278,7 +278,7 @@ wss.on("connection", function (ws) {
 				let offeringPlayer = player;
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
-						message: "offer", offer: offer, player: offeringPlayer
+						message: "offer", offer: message.offer, player: offeringPlayer
 					}));
 				});
 				break;
@@ -296,7 +296,7 @@ wss.on("connection", function (ws) {
 				sendResources(clients[turn], players[turn]);
 				sendResources(clients[message.player], players[message.player]);
 				clients.forEach(function (ws, player) {
-					ws.send(JSON.stringify({ message: "end" }));
+					ws.send(JSON.stringify({ message: "confirm" }));
 				});
 
 				currentState = this.play;
@@ -304,7 +304,7 @@ wss.on("connection", function (ws) {
 
 			case "cancel":
 				clients.forEach(function (ws, player) {
-					ws.send(JSON.stringify({ message: "end" }));
+					ws.send(JSON.stringify({ message: "confirm" }));
 				});
 
 				currentState = this.play;
