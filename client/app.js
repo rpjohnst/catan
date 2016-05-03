@@ -532,18 +532,20 @@ class Play {
 			}
 		});
 
+		}
+
 		// draw robber
-		if (this.action == "moveRobber") {
-			let image = this.assets.pawn;
-			let [px, py] = tileToPixels(mx, my);
-			if (currentState.board.tiles[my] && currentState.board.tiles[my][mx] && currentState.board.tiles[my][mx] != Catan.OCEAN) {
-				ctx.globalAlpha = 0.5;
-				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
-				ctx.globalAlpha = 1.0;
-			}
-		} else {
-			let image = this.assets.pawn;
-			let [px, py] = tileToPixels(this.board.robber[0], this.board.robber[1]);
+		if (this.action != "moveRobber") {
+			let [rx, ry] = this.board.robber;
+			drawRobber(this.assets.pawn, rx, ry);
+		} else if (this.board.isGround(mx, my)) {
+			ctx.globalAlpha = 0.5;
+			drawRobber(this.assets.pawn, mx, my);
+			ctx.globalAlpha = 1.0;
+		}
+
+		function drawRobber(image, x, y) {
+			let [px, py] = tileToPixels(x, y);
 			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 		}
 

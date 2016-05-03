@@ -82,14 +82,7 @@ class Catan {
 		if (this.roads[y][x][d] != null) { return false; }
 
 		// a road must touch land
-		let land = false;
-		for (let [tx, ty] of this.joiningTiles(x, y, d)) {
-			if (!this.tiles[ty] || !this.tiles[ty][tx]) { continue; }
-			if (this.tiles[ty][tx] != Catan.OCEAN) {
-				land = true;
-			}
-		}
-		if (!land) { return false; }
+		if (!this.joiningTiles(x, y, d).some(([tx, ty]) => this.isGround(tx, ty))) { return false; }
 
 		// a road must be next to a road or town of the same player
 		// during pregame, a road must be next to the player's last town (given by `town`)
@@ -120,13 +113,7 @@ class Catan {
 		if (!this.buildings[y] || !this.buildings[y][x]) { return false; }
 
 		// Ensure that this vertex touches at least one land tile
-		let land = false;
-		for(let [tx, ty] of this.touchesTiles(x, y, d)){
-			if(this.tiles[ty] != undefined && this.tiles[ty][tx] != undefined
-				&& this.tiles[ty][tx] != Catan.OCEAN)
-				land = true;
-		}
-		if(!land) return false;
+		if (!this.touchesTiles(x, y, d).some(([tx, ty]) => this.isGround(tx, ty))) { return false; }
 
 		// A town must be placed on an empty vertex not adjacent to any other towns
 		if (this.buildings[y][x][d] != null) { return false; }
@@ -151,25 +138,33 @@ class Catan {
 
 	// a vertex is specified as a tile and either left or right (0/1)
 	buildTown(x, y, d, player, pregame) {
-		if(!this.validTown(x, y, d, player, pregame)) return false;
+		if (!this.validTown(x, y, d, player, pregame)) { return false; }
 		this.buildings[y][x][d] = { player: player, type: Catan.TOWN };
-		if(pregame) { this.mustTouch = {y:y, x:x, d:d}; }
 		return true;
 	}
 
 	validCity(x, y, d, player) {
 		// a city must be placed on top of a vertex that contains a town of the same player
-		if(!this.buildings[y] || !this.buildings[y][x] || !this.buildings[y][x][d])
+		if (!this.buildings[y] || !this.buildings[y][x] || !this.buildings[y][x][d]) {
 			return false;
+		}
+
 		let building = this.buildings[y][x][d];
 		if (building.player != player || building.type != Catan.TOWN) { return false; }
 		return true;
 	}
 
 	buildCity(x, y, d, player) {
-		if(!this.validCity(x, y, d, player)) return false;
+		if (!this.validCity(x, y, d, player)) { return false; }
 		this.buildings[y][x][d] = { player: player, type: Catan.CITY };
 		return true;
+	}
+
+	isGround(x, y) {
+		return (
+			this.tiles[y] && this.tiles[y][x] != null &&
+			this.tiles[y][x] != Catan.OCEAN
+		);
 	}
 
 	forEachTile(cx, cy, N, callback) {
