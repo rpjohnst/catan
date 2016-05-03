@@ -64,4 +64,12 @@ class Player{
 	}
 };
 
+Player.countResources = function (hand) {
+	let sum = 0;
+	for (let resourceType in hand) {
+		sum += hand[resourceType];
+	}
+	return sum;
+}
+
 module.exports = Player;

@@ -167,6 +167,17 @@ class Catan {
 		);
 	}
 
+	robberTargets(x, y, exclude) {
+		let targets = [];
+		for (let [vx, vy, vd] of this.cornerVertices(x, y)) {
+			let building = this.buildings[vy][vx][vd];
+			if (!building || building.player == exclude) { continue; }
+
+			targets.push(building.player);
+		}
+		return targets;
+	}
+
 	forEachTile(cx, cy, N, callback) {
 		for (let dx = -N; dx <= N; dx++) {
 			for (let dy = Math.max(-N, -dx - N); dy <= Math.min(N, -dx + N); dy++) {

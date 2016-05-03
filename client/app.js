@@ -252,8 +252,12 @@ class Play {
 		this.tradingOffers = [];
 		this.tradingOngoing = false;
 
-		this.mouseX = 0;
-		this.mouseY = 0;
+		this.robber = this.board.robber;
+
+		this.mouse = [0, 0];
+		this.tile = [0, 0];
+		this.vertex = [0, 0, 0];
+		this.edge = [0, 0, 0];
 
 		this.ws.onmessage = (event) => {
 			console.log(event.data);
@@ -271,8 +275,11 @@ class Play {
 				}
 
 				if (!this.dice) { break; }
-				if (this.dice == 7 && this.player == message.player) {
-					this.action = "moveRobber";
+				if (this.dice == 7) {
+					if (this.player == message.player) { this.action = "moveRobber"; }
+
+					let total = Player.countResources(this.hand.resources);
+					if (total > 7) { showDiscardModal(Math.floor(total / 2)); }
 				}
 
 				for (let [hx, hy] of this.board.hit[this.dice]) {
@@ -320,64 +327,18 @@ class Play {
 
 			// robber messages
 
-			case "stealGood":
-				let total = 0;
-				for (let resource in Play.resourceNames) {
-					resource = +resource;
-					total += this.hand.resources[resource];
-				}
-
-				if (total > 7) {
-					// Find number to discard
-					let discard = Math.floor(total/2);
-
-					// Update label
-					let cards = (discard > 1)? "Cards": "Card";
-					document.getElementById("discard-amount").innerHTML = "Discard " + discard + " " + cards;
-					showDiscardModal();
-				}
-
+			case "discard":
+				document.getElementById("discard-modal").style.display = "none";
 				break;
 
-			case "discardGood":
-				document.getElementById('discard-modal').style.display = "none";
+			case "robber":
+				this.board.robber = [message.x, message.y];
+				if (this.action == "steal") { delete this.action; }
 				break;
 
 			case "error":
-				if (message.error == "discardResources") {
-					showDiscardModal();
-				}
-				break;
-
-			case "robberGood":
-				this.board.robber = [message.x, message.y];
-				if (this.action == "moveRobber") {
-					delete currentState.action;
-				}
-				if (message.targets && message.targets.length > 0) {
-					this.action = "stealing";
-
-					// Add UI element to select player with event to send steal message
-					for (let i=0; i < message.targets.length; i++) {
-						let target = message.targets[i];
-						let button = document.createElement("button");
-						button.innerHTML = "Steal From Player " + target;
-						button.setAttribute("type", "button");
-						button.classList.add("steal-btn");
-						button.addEventListener("click", function (event) {
-							this.ws.send(JSON.stringify({ message: "steal", player:target }));
-							let removals = document.querySelectorAll(".steal-btn");
-							for (let j=0; j < removals.length; j++) {
-								document.forms.building.removeChild(removals[j]);
-							}
-							if (this.action == "stealing") {
-								delete this.action;
-							}
-
-							event.preventDefault();
-						}.bind(this));
-						document.forms.building.appendChild(button);
-					}
+				if (message.error == "robber" && this.action == "steal") {
+					this.action = "moveRobber";
 				}
 				break;
 			}
@@ -396,16 +357,11 @@ class Play {
 		ctx.fillStyle = "#fff";
 		ctx.fillText("You are player " + this.player + " and it is player " + this.turn + "'s turn", 0, 0);
 
-		let [mx, my] = pixelsToTile(this.mouseX, this.mouseY);
+		let [mx, my] = this.tile, [mvx, mvy, mvd] = this.vertex, [mex, mey, med] = this.edge;
 		ctx.fillText("Mouse cursor on tile (" + mx + "," + my + ")", 0, 16);
-
-		let [mvx, mvy, mvd] = pixelsToVertex(this.mouseX, this.mouseY);
 		ctx.fillText("Mouse cursor near vertex (" + mvx + "," + mvy + "," + ["L", "R"][mvd] + ")", 0, 32);
-
-		let [mex, mey, med] = pixelsToEdge(this.mouseX, this.mouseY);
 		ctx.fillText("Mouse cursor near edge (" + mex + "," + mey + "," + ["W", "N", "E"][med] + ")", 0, 48);
 
-		// draw tiles, roads, and buildings
 		let cx = 3, cy = 3, N = 3;
 
 		// draw tiles
@@ -501,11 +457,6 @@ class Play {
 			}
 		});
 
-		// Store vertex and edge coordinates in current state (should decouple from rendering?)
-		currentState.lvx = mvx; currentState.lvy = mvy; currentState.lvd = mvd;
-		currentState.lex = mex; currentState.ley = mey; currentState.led = med;
-		currentState.lmx = mx; currentState.lmy = my;
-
 		// draw numbers
 		this.board.hit.forEach((hit, i) => {
 			if (hit == null || i == 0) { return; }
@@ -536,7 +487,7 @@ class Play {
 
 		// draw robber
 		if (this.action != "moveRobber") {
-			let [rx, ry] = this.board.robber;
+			let [rx, ry] = this.action == "steal" ? this.robber : this.board.robber;
 			drawRobber(this.assets.pawn, rx, ry);
 		} else if (this.board.isGround(mx, my)) {
 			ctx.globalAlpha = 0.5;
@@ -612,15 +563,37 @@ class Play {
 				this.sprites.splice(i, 1);
 			}
 		}
-
 	}
 
-	moveRobber(x, y) {
-		this.ws.send(JSON.stringify({ message: "moveRobber", x: x, y: y }));
-	}
+	click() {
+		let [tx, ty] = this.tile;
+		let [vx, vy, vd] = this.vertex;
+		let [ex, ey, ed] = this.edge;
 
-	build(type, x, y, d) {
-		this.ws.send(JSON.stringify({ message: "build", type: type, x: x, y: y, d: d }));
+		if (this.action == "moveRobber") {
+			currentState.steal(tx, ty);
+			return;
+		}
+
+		let type, x, y, d;
+		switch (this.action) {
+			default: return;
+
+			case "buildRoad": sendBuild(this.ws, Catan.ROAD, ex, ey, ed); break;
+			case "buildTown": sendBuild(this.ws, Catan.TOWN, vx, vy, vd); break;
+			case "buildCity": sendBuild(this.ws, Catan.CITY, vx, vy, vd); break;
+		}
+
+		if (this.action == "buildCity") {
+			this.pendingCity = { x: vx, y: vy, d: vd };
+		}
+
+		restoreDefaultButtons();
+		delete this.action;
+
+		function sendBuild(ws, type, x, y, d) {
+			ws.send(JSON.stringify({ message: "build", type: type, x: x, y: y, d: d }));
+		}
 	}
 
 	offer(offer) {
@@ -633,6 +606,35 @@ class Play {
 
 	cancel() {
 		this.ws.send(JSON.stringify({ message: "cancel" }));
+	}
+
+	steal(x, y) {
+		this.robber = [x, y];
+		this.action = "steal";
+
+		let targets = this.board.robberTargets(x, y, this.player);
+
+		// if there is no one to steal from, assume stealing has already been completed.
+		if (targets.length == 0) {
+			this.ws.send(JSON.stringify({ message: "robber", x: x, y: y }));
+		}
+
+		// add UI element to select player with event to send steal message
+		let buttons = [];
+		for (let target of targets) {
+			let button = document.createElement("button");
+
+			buttons.push(button);
+			document.forms.trading.appendChild(button);
+
+			button.innerHTML = "Steal From Player " + target;
+			button.addEventListener("click", (event) => {
+				event.preventDefault();
+
+				this.ws.send(JSON.stringify({ message: "robber", x: x, y: y, player: target }));
+				buttons.forEach((button) => document.forms.trading.removeChild(button));
+			});
+		}
 	}
 
 	endTurn() {
@@ -667,6 +669,8 @@ canvas.width = 1050;
 canvas.height = 525;
 document.body.appendChild(canvas);
 
+// board
+
 let restoreDefaultButtons = function () {
 	document.getElementById("buildRoad").innerHTML = "Build Road";
 	document.getElementById("buildTown").innerHTML = "Build Town";
@@ -675,32 +679,20 @@ let restoreDefaultButtons = function () {
 
 canvas.addEventListener("mousemove", function (event) {
 	let rect = canvas.getBoundingClientRect();
-	currentState.mouseX = event.clientX - rect.left;
-	currentState.mouseY = event.clientY - rect.top;
+	let mouseX = currentState.mouseX = event.clientX - rect.left;
+	let mouseY = currentState.mouseY = event.clientY - rect.top;
+
+	currentState.tile = pixelsToTile(mouseX, mouseY);
+	currentState.vertex = pixelsToVertex(mouseX, mouseY);
+	currentState.edge = pixelsToEdge(mouseX, mouseY);
 });
 
 canvas.addEventListener("click", function (event) {
 	event.preventDefault();
-	if (!currentState.action) { return; }
-
-	switch(currentState.action) {
-		case "buildTown": currentState.build(Catan.TOWN, currentState.lvx, currentState.lvy, currentState.lvd); break;
-		case "buildRoad": currentState.build(Catan.ROAD, currentState.lex, currentState.ley, currentState.led); break;
-		case "buildCity": currentState.build(Catan.CITY, currentState.lvx, currentState.lvy, currentState.lvd); break;
-		case "moveRobber": currentState.moveRobber(currentState.lmx, currentState.lmy); break;
-		default: return;
-	}
-
-	// Save pending city so the town does not blink into place before the server confirms the city is valid
-	if (currentState.action == "buildCity") {
-		currentState.pendingCity = {x:currentState.lvx, y:currentState.lvy, d:currentState.lvd};
-	}
-
-	if (currentState.action != "moveRobber") {
-		delete currentState.action;
-	}
-	restoreDefaultButtons();	
+	currentState.click();
 });
+
+
 
 ["buildRoad", "buildTown", "buildCity"].forEach(function (id) {
 	document.getElementById(id).addEventListener("click", function (event) {
@@ -763,56 +755,47 @@ document.getElementById("endTurn").addEventListener("click", function (event) {
 let ctx = canvas.getContext("2d");
 let lobby = new Lobby(ctx);
 
-document.getElementById("discard-btn").addEventListener("click", function (event) {
-	event.preventDefault();
-	let total = 0;
-	for (let resource in Play.resourceNames) {
-		resource = +resource;
-		total += +document.getElementById(Play.resourceNames[resource]).innerHTML;						
-	}
-	let discard = Math.floor(total/2);
+// discarding
+{
+	let form = document.forms.discard;
 
-	// Check if total is good
-	let discarded = +document.forms.discard.ore.value +
-									+document.forms.discard.wood.value +
-									+document.forms.discard.wool.value +
-									+document.forms.discard.grain.value +
-									+document.forms.discard.brick.value;
+	form.discard.addEventListener("click", function (event) {
+		event.preventDefault();
 
-	document.forms.discard
-
-	if (discarded == discard) {
 		let resources = {
-			[Catan.ORE]: +document.forms.discard.ore.value,
-			[Catan.WOOD]: +document.forms.discard.wood.value,
-			[Catan.WOOL]: +document.forms.discard.wool.value,
-			[Catan.GRAIN]: +document.forms.discard.grain.value,
-			[Catan.BRICK]: +document.forms.discard.brick.value,
+			[Catan.ORE]: +form.ore.value,
+			[Catan.WOOD]: +form.wood.value,
+			[Catan.WOOL]: +form.wool.value,
+			[Catan.GRAIN]: +form.grain.value,
+			[Catan.BRICK]: +form.brick.value,
 		};
 
-		this.ws.send(JSON.stringify({ message: "discardResources", resources:resources }));		
-	} else {
-		alert("No! bad!");
-	}
-}.bind(lobby));
+		let toDiscard = Math.floor(Player.countResources(currentState.hand.resources) / 2);
+		let discarded = Player.countResources(resources);
+		if (discarded != toDiscard) {
+			alert("You must discard half your resources.");
+			return;
+		}
 
-let showDiscardModal = function () {
-	document.forms.discard.ore.max = currentState.hand.resources[Catan.ORE];
-	document.forms.discard.wood.max = currentState.hand.resources[Catan.WOOD];
-	document.forms.discard.wool.max = currentState.hand.resources[Catan.WOOL];
-	document.forms.discard.grain.max = currentState.hand.resources[Catan.GRAIN];
-	document.forms.discard.brick.max = currentState.hand.resources[Catan.BRICK];
-	document.getElementById('discard-modal').style.display = "block";
+		currentState.ws.send(JSON.stringify({ message: "discard", resources: resources }));
+	});
+
+	[
+		form.ore, form.wood, form.wool, form.grain, form.brick
+	].forEach(function (input) { input.value = input.min = 0; });
 }
 
-let discardForm = document.forms.discard;
-let discards = [discardForm.ore, discardForm.wood, discardForm.wool, discardForm.grain, discardForm.brick];
-discards.forEach(function (input) {
-	input.addEventListener("change", function (event) {
-		if (+event.target.value > +event.target.max) {
-			event.target.value = +event.target.max;
-		}
-	});
-});
+function showDiscardModal(count) {
+	let cards = (count > 1) ? "Cards" : "Card";
+	document.getElementById("discard-amount").innerHTML = "Discard " + count + " " + cards;
+	document.getElementById("discard-modal").style.display = "block";
+
+	let form = document.forms.discard;
+	form.ore.max = currentState.hand.resources[Catan.ORE];
+	form.wood.max = currentState.hand.resources[Catan.WOOD];
+	form.wool.max = currentState.hand.resources[Catan.WOOL];
+	form.grain.max = currentState.hand.resources[Catan.GRAIN];
+	form.brick.max = currentState.hand.resources[Catan.BRICK];
+}
 
 run(lobby);

@@ -234,7 +234,16 @@ wss.on("connection", function (ws) {
 				});
 
 				if (dice == 7) {
-					currentState = new Robber(this);
+					// players with more than 7 cards must discard half
+					let resourcesToDiscard = [];
+					for (let player in players) {
+						let resourceCount = Player.countResources(players[player].resources);
+						if (resourceCount > 7) {
+							resourcesToDiscard[player] = Math.floor(resourceCount / 2);
+						}
+					}
+
+					currentState = new Robber(this, resourcesToDiscard);
 				}
 				break;
 			}
@@ -258,7 +267,7 @@ wss.on("connection", function (ws) {
 
 			case "offer":
 				if (
-					countResources(message.offer) == 0 ||
+					Player.countResources(message.offer) == 0 ||
 					!players[player].hasResources(message.offer)
 				) {
 					sendError(ws, "offer");
@@ -307,122 +316,81 @@ wss.on("connection", function (ws) {
 	}
 
 	class Robber {
-		constructor(play) {
+		constructor(play, resourcesToDiscard) {
 			this.play = play;
-
-			this.robberMoved = false;
-			this.resourceStolen = false;
-			this.resourcesToDiscard = [];
-
-			for (let player in players) {
-				let resourceCount = countResources(players[player].resources);
-				if (resourceCount > 7) {
-					this.resourcesToDiscard[player] = Math.floor(resourceCount / 2);
-				}
-			}
+			this.resourcesToDiscard = resourcesToDiscard;
 		}
 
 		onmessage(ws, player, message) {
-			if (player != turn && message.message != "discardResources") {
+			if (player != turn && message.message != "discard") {
 				sendError(ws, "confirm");
 				return false;
 			}
 
+			let toDiscard = this.resourcesToDiscard.reduce((x, y) => x + y, 0);
+
 			switch (message.message) {
 			default: sendError(ws, "message"); break;
 
-			case "discardResources":
-				let discardCount = countResources(message.resources);
+			case "discard":
 				if (
-					!players[player].hasResources(message.resources) ||
-					discardCount != this.resourcesToDiscard[player] ||
-					!this.resourcesStolen
+					Player.countResources(message.resources) != this.resourcesToDiscard[player] ||
+					!players[player].hasResources(message.resources)
 				) {
-					sendError(ws, "discardResources");
+					sendError(ws, "discard");
 					break;
 				}
 
 				this.resourcesToDiscard[player] = 0;
 				players[player].spendResources(message.resources);
 
-				ws.send(JSON.stringify({ message: "discardGood" }));
+				ws.send(JSON.stringify({ message: "discard" }));
 				sendResources(ws, players[player]);
 				break;
 
-			case "moveRobber":
+			case "robber":
+				// the robber must be moved after all discards have been made,
+				// as well as to a ground tile
 				if (
-					this.robberMoved ||
-					!board.tiles[message.y] || !board.tiles[message.y][message.x] ||
+					toDiscard > 0 ||
+					!board.tiles[message.y] || board.tiles[message.y][message.x] == null ||
 					board.tiles[message.y][message.x] == Catan.OCEAN
 				) {
-					sendError(ws, "moveRobber");
+					sendError(ws, "robber");
 					break;
 				}
 
-				this.robberMoved = true;
+				currentState = this.play;
+
+				// if the robber is moved to a tile neighboring any other players,
+				// the player moving the robber must pick one of them to steal from
+				let targets = board.robberTargets(message.x, message.y, turn);
+				if (targets.length > 0 && targets.indexOf(message.player) == -1) {
+					sendError(ws, "robber");
+					break;
+				}
+
 				board.robber = [message.x, message.y];
-
-				let targets = [];
-				for (let [vx, vy, vd] of board.cornerVertices(message.x, message.y)) {
-					let building = board.buildings[vy][vx][vd];
-					if (!building || building.player == turn || targets.indexOf(building.player) != -1) { continue; }
-
-					if (countResources(players[building.player].resources) > 0) {
-						console.log("adding target: " + building.player);
-						targets.push(building.player);
-					}
-				}
-
-				// If there is no one to steal from, assume stealing has already been completed.
-				if (targets.length == 0) {
-					this.resourceStolen = true;
-				}
-
-				let stealingPlayer = player;
 				clients.forEach(function (ws, player) {
-					let robberGood = { message: "robberGood", x: message.x, y: message.y };
-					if (player == stealingPlayer) { robberGood.targets = targets; }
-
-					ws.send(JSON.stringify(robberGood));
+					ws.send(JSON.stringify({ message: "robber", x: message.x, y: message.y }));
 				});
-				break;
 
-			case "steal":
-				if (this.resourceStolen) {
-					sendError(ws, "steal");
-					break;
-				}
+				if (targets.length == 0) { break; }
 
-				let allResources = [];
 				let playerResources = players[message.player].resources;
-				for (let resourceType in playerResources) {
-					allResources.push.apply(allResources, repeat(resourceType, playerResources[resourceType]));
-				}
+				let resources = Array.prototype.concat.apply([], Object.keys(playerResources).map(
+					(type) => repeat(type, playerResources[type])
+				));
+				if (resources.length == 0) { break; }
 
-				// Choose a random resource to steal
-				let chosenIndex = Math.floor(Math.random() * allResources.length);
-				let chosenResource = allResources[chosenIndex];
-				players[player].resources[chosenResource]++;
-				players[message.player].resources[chosenResource]--;
+				let resource = resources[Math.floor(Math.random() * resources.length)];
+				players[player].resources[resource] += 1;
+				players[message.player].resources[resource] -= 1;
 
-				// Update resource counts
 				sendResources(ws, players[player]);
 				sendResources(clients[message.player], players[message.player]);
 
-				clients.forEach(function (ws, player) {
-					let stealGood = { message: "stealGood" };
-					ws.send(JSON.stringify(stealGood));
-				});
-
-				this.resourceStolen = true;
 				break;
-			}
-
-			// Check if we're done with "robber mode"
-			let toDiscard = this.resourcesToDiscard.reduce((x, y) => x + y, 0);
-			// TODO: re-add discard check
-			if (toDiscard == 0 && this.robberMoved && this.resourceStolen) {
-				currentState = play;
 			}
 
 			return;
@@ -444,14 +412,6 @@ wss.on("connection", function (ws) {
 		ws.send(JSON.stringify({ message: "error", error: message }));
 	}
 });
-
-function countResources(hand) {
-	let sum = 0;
-	for (let resourceType in hand) {
-		sum += hand[resourceType];
-	}
-	return sum;
-}
 
 function rollDie() {
 	return Math.floor(Math.random() * 6 + 1);
