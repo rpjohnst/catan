@@ -537,6 +537,10 @@ class Play {
 		}
 	}
 
+	buyDevelop() {
+		this.ws.send(JSON.stringify({ message: "buyDevelop" }));
+	}
+
 	offer(offer) {
 		this.ws.send(JSON.stringify({ message: "offer", offer: offer }));
 	}
@@ -672,6 +676,13 @@ canvas.addEventListener("click", function (event) {
 			currentState.action = id;
 			form[id].innerHTML = "Cancel";
 		});
+	});
+
+	form.buildCard.addEventListener("click", function (event) {
+		event.preventDefault();
+		if (modalActions.indexOf(currentState.action) > -1) { return; }
+
+		currentState.buyDevelop();
 	});
 
 	form.endTurn.addEventListener("click", function (event) {

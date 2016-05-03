@@ -248,6 +248,8 @@ wss.on("connection", function (ws) {
 					break;
 				}
 				this.pendingCards.push(this.development.pop());
+				players[player].build(Catan.CARD);
+				sendResources(ws, players[player]);
 				break;
 
 			case "turn":
