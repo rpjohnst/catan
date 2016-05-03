@@ -1,85 +1,8 @@
 "use strict";
 
 let Catan = require("../catan").Catan,
-	Player = require("../player");
-
-	let radius = 35,
-			hexagon_narrow_width = 3 / 2 * radius,
-			hexagon_height = 2 * radius * Math.sin(Math.PI / 3);
-
-	let tileToPixels = function (x, y) {
-		let width = canvas.width;
-		let height = canvas.height;
-		let xx = x - 3, yy = y - 3;
-		return [
-			width / 4 + hexagon_narrow_width * xx,
-			height / 2 - hexagon_height * (xx / 2 + yy)
-		];
-	};
-
-	let vertexToPixels = function (x, y, d) {
-		let [px, py] = tileToPixels(x, y);
-		if (d == 0) { px -= radius; }
-		else if (d == 1) { px += radius; }
-		return [px, py];
-	};
-
-	let pixelsToTile = function (px, py) {
-		let width = canvas.width;
-		let height = canvas.height;
-
-		// convert to fractional cube coordinates
-		let x = (px - width / 4) / hexagon_narrow_width,
-			y = (height / 2 - py) / hexagon_height - x / 2,
-			z = -(x + y);
-
-		// round to nearest cube and calculate the difference
-		let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
-		let dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
-
-		// whichever coordinate moved farthest, push it back into the hex grid plane
-		if (dx > dy && dx > dz) {
-			rx = -(ry + rz);
-		} else if (dy > dz) {
-			ry = -(rx + rz);
-		} else {
-			rz = -(rx + ry);
-		}
-
-		return [rx + 3, ry + 3];
-	};
-
-	let pixelsToVertex = function (px, py) {
-		let [x, y] = pixelsToTile(px, py);
-		let [cx, cy] = tileToPixels(x, y);
-		let angle = Math.atan2(cy - py, px - cx);
-		let hextant = (Math.floor((angle + Math.PI / 6) / 2 / Math.PI * 6) + 6) % 6;
-
-		switch (hextant) {
-		case 0: return [x, y, 1];
-		case 1: return [x + 1, y, 0];
-		case 2: return [x - 1, y + 1, 1];
-		case 3: return [x, y, 0];
-		case 4: return [x - 1, y, 1];
-		case 5: return [x + 1, y - 1, 0];
-		}
-	};
-
-	let pixelsToEdge = function (px, py) {
-		let [x, y] = pixelsToTile(px, py);
-		let [cx, cy] = tileToPixels(x, y);
-		let angle = Math.atan2(cy - py, px - cx);
-		let hextant = (Math.floor(angle / 2 / Math.PI * 6) + 6) % 6;
-
-		switch (hextant) {
-		case 0: return [x, y, 2];
-		case 1: return [x, y, 1];
-		case 2: return [x, y, 0];
-		case 3: return [x - 1, y, 2];
-		case 4: return [x, y - 1, 1];
-		case 5: return [x + 1, y - 1, 0];
-		}
-	};
+	Player = require("../player"),
+	Hex = require("./hex");
 
 let currentState;
 let run = function (state) {
@@ -284,11 +207,11 @@ class Play {
 
 				for (let [hx, hy] of this.board.hit[this.dice]) {
 					let resource = this.board.tiles[hy][hx];
-					let [tpx, tpy] = tileToPixels(hx, hy);
+					let [tpx, tpy] = Hex.tileToPixels(hx, hy);
 					for (let [cx, cy, cd] of this.board.cornerVertices(hx, hy)) {
 						if (!this.board.buildings[cy][cx][cd]) { continue; }
 
-						let [vpx, vpy] = vertexToPixels(cx, cy, cd);
+						let [vpx, vpy] = Hex.vertexToPixels(cx, cy, cd);
 						this.sprites.push(new ResourceSprite(
 							tpx, tpy, vpx, vpy, resource, this.assets, this.ctx
 						));
@@ -366,7 +289,7 @@ class Play {
 
 		// draw tiles
 		this.board.forEachTile(cx, cy, N, (x, y) => {
-			let [px, py] = tileToPixels(x, y);
+			let [px, py] = Hex.tileToPixels(x, y);
 
 			let image = this.assets.hexagons[this.board.tiles[y][x]] || this.assets.hexagon;
 			let width = radius * 2 - 5, height = radius * 2 - 10;
@@ -379,83 +302,80 @@ class Play {
 				let road = this.board.roads[y][x][d];
 				if (road == null) { continue; }
 
-				let [[x1, y1, d1], [x2, y2, d2]] = this.board.endpointVertices(x, y, d);
-				let [px1, py1] = vertexToPixels(x1, y1, d1);
-				let [px2, py2] = vertexToPixels(x2, y2, d2);
-
-				ctx.strokeStyle = playerColors[road];
-				ctx.lineWidth = 4;
-				ctx.beginPath();
-				ctx.moveTo(px1, py1);
-				ctx.lineTo(px2, py2);
-				ctx.stroke();
+				drawRoad(playerColors[road], x, y, d);
 			}
 		});
 
-		// draw "under construction" items
-		{
-			let drawGhost = (validityCheck, x, y, d) => {
-				if (validityCheck(x, y, d, currentState.player, this.pregame)) {
-					let [px, py] = vertexToPixels(x, y, d);
-					ctx.globalAlpha = 0.5;
-					let image = (currentState.action == "buildTown")? this.assets.towns[currentState.player]: this.assets.cities[currentState.player];
-					ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
-					ctx.globalAlpha = 1.0;
-				}
-			};
+		if (
+			this.action == "buildRoad" &&
+			this.board.validRoad(mex, mey, med, this.player, this.pregame, this.lastTown[this.player])
+		) {
+			ctx.globalAlpha = 0.5;
+			drawRoad(playerColors[this.player], mex, mey, med);
+			ctx.globalAlpha = 1.0;
+		}
 
-			if (currentState.action == "buildTown") {
-				drawGhost(currentState.board.validTown.bind(currentState.board), mvx, mvy, mvd);
-			}
+		function drawRoad(color, x, y, d) {
+			let [[x1, y1, d1], [x2, y2, d2]] = currentState.board.endpointVertices(x, y, d);
+			let [px1, py1] = Hex.vertexToPixels(x1, y1, d1);
+			let [px2, py2] = Hex.vertexToPixels(x2, y2, d2);
 
-			if (currentState.action == "buildCity") {
-				drawGhost(currentState.board.validCity.bind(currentState.board), mvx, mvy, mvd);
-			}
-
-			if (currentState.action == "buildRoad") {
-				let lastTown = this.pregame ? this.lastTown[this.player] : undefined;
-				if (currentState.board.validRoad(
-					mex, mey, med, currentState.player, this.pregame, lastTown)
-				) {
-					let [[x1, y1, d1], [x2, y2, d2]] = this.board.endpointVertices(mex, mey, med);
-					let [px1, py1] = vertexToPixels(x1, y1, d1);
-					let [px2, py2] = vertexToPixels(x2, y2, d2);
-
-					ctx.strokeStyle = playerColors[currentState.player]; ctx.lineWidth = 4;
-					ctx.globalAlpha = 0.5;
-					ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
-					ctx.globalAlpha = 1.0;
-				}
-			}
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 4;
+			ctx.beginPath();
+			ctx.moveTo(px1, py1);
+			ctx.lineTo(px2, py2);
+			ctx.stroke();
 		}
 
 		// draw buildings
 		this.board.forEachTile(cx, cy, N, (x, y) => {
 			for (let d = 0; d < 2; d++) {
 				let building = this.board.buildings[y][x][d];
-				let pending = currentState.pendingCity;
+				if (!building) { continue; }
 
-				/* Don't display the building if:
-					1) There is not building at this tile
-					2) A city is being placed
-					3) A city is being confirmed by the server
-				*/
+				// don't draw a town if the player is hovering a city over it
 				if (
-					!building ||
-					(this.action == "buildCity" && x == mvx && y == mvy && d == mvd) ||
-					(pending && pending.x == x && pending.y == y && pending.d == d)
+					this.action == "buildCity" && x == mvx && y == mvy && d == mvd &&
+					this.board.validCity(x, y, d)
 				) { continue; }
 
-				let [px, py] = vertexToPixels(x, y, d);
 				let image;
-				if (building.type == Catan.TOWN) {
-					image = this.assets.towns[building.player];
-				} else if (building.type == Catan.CITY) {
+				switch (building.type) {
+				case Catan.TOWN: image = this.assets.towns[building.player]; break;
+				case Catan.CITY: image = this.assets.cities[building.player]; break;
+				}
+
+				// draw a city if the client is waiting for the server to upgrade it
+				let pending = this.pendingCity;
+				if (pending && pending.x == x && pending.y == y && pending.d == d) {
 					image = this.assets.cities[building.player];
 				}
-				ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
+
+				drawBuilding(image, x, y, d);
 			}
 		});
+
+		if (this.action == "buildTown" && this.board.validTown(mvx, mvy, mvd)) {
+			ctx.globalAlpha = 0.5;
+			drawBuilding(this.assets.towns[this.player], mvx, mvy, mvd);
+			ctx.globalAlpha = 1.0;
+		}
+
+		if (this.action == "buildCity" && this.board.validCity(mvx, mvy, mvd)) {
+			ctx.globalAlpha = 0.5;
+			drawBuilding(this.assets.cities[this.player], mvx, mvy, mvd);
+			ctx.globalAlpha = 1.0;
+		}
+
+		function drawBuilding(image, x, y, d) {
+			let [px, py] = Hex.vertexToPixels(x, y, d);
+			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
+		}
+		// Store vertex and edge coordinates in current state (should decouple from rendering?)
+		currentState.lvx = mvx; currentState.lvy = mvy; currentState.lvd = mvd;
+		currentState.lex = mex; currentState.ley = mey; currentState.led = med;
+		currentState.lmx = mx; currentState.lmy = my;
 
 		// draw numbers
 		this.board.hit.forEach((hit, i) => {
@@ -466,7 +386,7 @@ class Play {
 			ctx.textBaseline = "middle";
 			ctx.fillStyle = "0xfff";
 			for (let [x, y] of hit) {
-				let [px, py] = tileToPixels(x, y);
+				let [px, py] = Hex.tileToPixels(x, y);
 
 				ctx.fillText(i, px, py - 10);
 				ctx.fillText(getPips(i), px, py+ 10);
@@ -496,7 +416,7 @@ class Play {
 		}
 
 		function drawRobber(image, x, y) {
-			let [px, py] = tileToPixels(x, y);
+			let [px, py] = Hex.tileToPixels(x, y);
 			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 		}
 
@@ -682,9 +602,9 @@ canvas.addEventListener("mousemove", function (event) {
 	let mouseX = currentState.mouseX = event.clientX - rect.left;
 	let mouseY = currentState.mouseY = event.clientY - rect.top;
 
-	currentState.tile = pixelsToTile(mouseX, mouseY);
-	currentState.vertex = pixelsToVertex(mouseX, mouseY);
-	currentState.edge = pixelsToEdge(mouseX, mouseY);
+	currentState.tile = Hex.pixelsToTile(mouseX, mouseY);
+	currentState.vertex = Hex.pixelsToVertex(mouseX, mouseY);
+	currentState.edge = Hex.pixelsToEdge(mouseX, mouseY);
 });
 
 canvas.addEventListener("click", function (event) {
