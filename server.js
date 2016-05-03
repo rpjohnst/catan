@@ -389,7 +389,6 @@ wss.on("connection", function (ws) {
 
 				sendResources(ws, players[player]);
 				sendResources(clients[message.player], players[message.player]);
-
 				break;
 			}
 
@@ -397,7 +396,37 @@ wss.on("connection", function (ws) {
 		}
 	}
 
-	currentState = new Start();
+	if (false) {
+		board.build(Catan.TOWN, 3, 3, 0, 0, true);
+		board.build(Catan.ROAD, 3, 3, 0, 0, true, { x: 3, y: 3, d: 0 });
+		board.build(Catan.TOWN, 3, 2, 1, 0, true);
+		board.build(Catan.ROAD, 4, 1, 1, 0, true, { x: 3, y: 2, d: 1 });
+		board.build(Catan.TOWN, 3, 5, 1, 1, true);
+		board.build(Catan.ROAD, 4, 4, 0, 1, true, { x: 3, y: 5, d: 1 });
+		board.build(Catan.TOWN, 2, 3, 0, 1, true);
+		board.build(Catan.ROAD, 1, 3, 2, 1, true, { x: 2, y: 3, d: 0 });
+		board.build(Catan.TOWN, 5, 3, 0, 2, true);
+		board.build(Catan.ROAD, 4, 3, 2, 2, true, { x: 5, y: 3, d: 0 });
+		board.build(Catan.TOWN, 1, 5, 1, 2, true);
+		board.build(Catan.ROAD, 2, 4, 0, 2, true, { x: 1, y: 5, d: 1 });
+		board.build(Catan.TOWN, 2, 2, 1, 3, true);
+		board.build(Catan.ROAD, 3, 1, 0, 3, true, { x: 2, y: 2, d: 1 });
+		board.build(Catan.TOWN, 1, 2, 1, 3, true);
+		board.build(Catan.ROAD, 1, 2, 2, 3, true, { x: 1, y: 2, d: 1 });
+
+		clients.forEach(function (ws, player) {
+			ws.send(JSON.stringify({ message: "start", board: board, player: player }));
+			ws.send(JSON.stringify({ message: "turn", player: turn }));
+		});
+
+		let ws = clients[turn];
+		turn = (turn + clients.length - 1) % clients.length;
+
+		currentState = new Play();
+		currentState.onmessage(ws, turn, { message: "turn" }, true);
+	} else {
+		currentState = new Start();
+	}
 
 	function sendResources(ws, player) {
 		ws.send(JSON.stringify({
