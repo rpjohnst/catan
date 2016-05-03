@@ -216,7 +216,7 @@ wss.on("connection", function (ws) {
 
 			case "build":
 				if (
-					!players[turn].canAfford(message.type) ||
+					!(players[turn].canAfford(message.type) || (message.type == Catan.ROAD && this.freeRoads > 0) )  ||
 					!board.build(message.type, message.x, message.y, message.d, turn)
 				) {
 					sendError(ws, "build");
@@ -258,6 +258,7 @@ wss.on("connection", function (ws) {
 				this.freeRoads = 0;
 
 				let dice = rollDie() + rollDie();
+				if(dice == 7) dice = 6; // TODO delete me
 				for (let [tx, ty] of board.hit[dice]) {
 					let terrain = board.tiles[ty][tx];
 					for (let [vx, vy, vd] of board.cornerVertices(tx, ty)) {
@@ -327,8 +328,6 @@ wss.on("connection", function (ws) {
 							}
 							players[player].resources[terrain] += 1;
 						}
-						//Remove the card from the hand. 
-						players[player].cards[Catan.YEAR_OF_PLENTY]--; 
 
 						//Inform the player
 						sendResources(ws, players[player]);						
@@ -393,6 +392,11 @@ wss.on("connection", function (ws) {
 							}
 						}
 					}
+				}
+
+				//Remove the card from the hand. 
+				if(this.devCardPlayed) {
+					players[player].cards[message.card]--;
 				}
 			}
 		}

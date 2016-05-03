@@ -686,7 +686,7 @@ canvas.addEventListener("click", function (event) {
 						case Catan.KNIGHT:					currentState.playKnight(); 				break;
 						case Catan.YEAR_OF_PLENTY: 	currentState.playYearOfPlenty(); 	break;
 						case Catan.MONOPOLY: 				currentState.playMonopoly(); 			break;						
-						case Catan.ROAD_BUILDING: 	currentState.playRoadBuiling(); 	break;
+						case Catan.ROAD_BUILDING: 	currentState.playRoadBuilding(); 	break;
 					}
 				}
 			}
