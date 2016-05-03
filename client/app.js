@@ -15,7 +15,7 @@ let run = function (state) {
 };
 
 const tileColors = ["#f4a460", "#666666", "#003200", "#006400", "#ffff00", "#660000", "#0000ff"];
-const playerColors = ["#ff0000", "#ff1493", "#0000ff", "#00ff00"];
+const playerColors = ["#ff0000", "#00bcff", "#ffbc00", "#008000"];
 
 const server = "ws://" + window.location.hostname + ":8081";
 
@@ -191,6 +191,23 @@ class Play {
 				);
 				break;
 
+			case "chat":
+				let name = document.createTextNode("Player " + message.sender + ": ");
+				let content = document.createTextNode(message.text);
+
+				let nameSpan = document.createElement("span");
+				nameSpan.style.color = playerColors[message.sender];
+				nameSpan.appendChild(name);
+
+				let msgP = document.createElement("p");
+				msgP.appendChild(nameSpan);
+				msgP.appendChild(content);
+
+				let chatBox = document.getElementById("chat-contents");
+				chatBox.appendChild(msgP);
+				chatBox.scrollTop = chatBox.scrollHeight;
+				break;
+
 			case "end":
 				currentState = new Lobby(ctx);
 				break;
@@ -216,17 +233,6 @@ class Play {
 			case "robber":
 				this.board.robber = [message.x, message.y];
 				if (this.action == "steal") { delete this.action; }
-				break;
-				
-			case "chat":
-				let chatBox = document.getElementById("chat");
-				let messageElem = document.createElement("p");
-				let playerName = document.createElement("span");
-				playerName.innerHTML = "Player " + message.sender + ": ";
-				playerName.style.color = playerColors[message.sender];
-				messageElem.appendChild(playerName);
-				messageElem.innerHTML += message.text;
-				chatBox.appendChild(messageElem);
 				break;
 
 			case "error":
@@ -425,28 +431,30 @@ class Play {
 
 			for (let resource in this.hand.resources) {
 				let y = -16 + resource * 16;
-				ctx.fillText(Play.resourceNames[resource], width / 2 + 40 + 100, y);
-				ctx.fillText(this.hand.resources[resource], width / 2 + 40 + 150, y);
+				ctx.fillText(Play.resourceNames[resource], width / 2 + 40 + 90, y);
+				ctx.fillText(this.hand.resources[resource], width / 2 + 40 + 140, y);
 			}
 
 			for (let card in this.hand.cards) {
 				let y = card * 16;
-				ctx.fillText(Play.cardNames[card], width / 2 + 40 + 200, y);
-				ctx.fillText(this.hand.cards[card], width / 2 + 40 + 320, y);
+				ctx.fillText(Play.cardNames[card], width / 2 + 40 + 170, y);
+				ctx.fillText(this.hand.cards[card], width / 2 + 40 + 290, y);
 			}
 
 			if (this.tradingOngoing) {
+				ctx.fillText("Offers:", width / 2 + 40, 100);
+
 				let j = 0;
 				for (let i = 0; i < 4; i++) {
 					let tx, ty;
 					if (i == this.turn) {
-						[tx, ty] = [width / 2 + 40, 100];
+						[tx, ty] = [width / 2 + 40, 132];
 					} else {
-						[tx, ty] = [width / 2 + 40 + 120 * j, 100 + 16 * 7];
+						[tx, ty] = [width / 2 + 40 + 120 * j, 132 + 16 * 7];
 						j++;
 					}
 
-					ctx.fillText("Player " + i + " Offers:", tx, ty);
+					ctx.fillText("Player " + i + ":", tx, ty);
 					let offerText = [];
 					let offer = this.tradingOffers[i];
 					for (let kind in offer) {
@@ -584,24 +592,9 @@ ResourceSprite = class {
 	}
 };
 
-//let container = document.createElement("div");
-//container.classList.add("container");
-
-let canvas = document.getElementById("canvas");//document.createElement("canvas");
+let canvas = document.getElementById("canvas");
 canvas.width = Hex.width;
 canvas.height = Hex.height;
-//container.appendChild(canvas);
-
-//let chat = document.createElement("div");
-//let chat_header = document.createElement("h2");
-//chat_header.innerHTML = "Messages";
-//chat.appendChild(chat_header);
-//chat.classList.add("chat");
-//chat.height = Hex.height;
-//chat.innerHTML = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? 1914 translation by H. Rackham But I must explain to you how all this mistaken idea of denouncing pleasure and praising pain was born and I will give you a complete account of the system, and expound the actual teachings of the great explorer of the truth, the master-builder of human happiness. No one rejects, dislikes, or avoids pleasure itself, because it is pleasure, but because those who do not know how to pursue pleasure rationally encounter consequences that are extremely painful. Nor again is there anyone who loves or pursues or desires to obtain pain of itself, because it is pain, but because occasionally circumstances occur in which toil and pain can procure him some great pleasure. To take a trivial example, which of us ever undertakes laborious physical exercise, except to obtain some advantage from it? But who has any right to find fault with a man who chooses to enjoy a pleasure that has no annoying consequences, or one who avoids a pain that produces no resultant pleasure?";
-//container.appendChild(chat);
-
-//document.body.appendChild(container);
 
 // board
 
@@ -738,12 +731,12 @@ function showDiscardModal(count) {
 // chat
 {
 	let form = document.forms.chat;
+
 	form.addEventListener("submit", function (event) {
 		event.preventDefault();
-		
+
 		currentState.ws.send(JSON.stringify({ message: "chat", text: form.message.value }));
 		form.reset();
-		
 	});
 }
 

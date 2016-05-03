@@ -1,5 +1,41 @@
 body { font-family: sans-serif; }
-h2 { padding: 0; }
+h2 { margin: 0; }
+
+.container {
+	position: relative;
+	width: 1160px;
+}
+
+.container > canvas {
+	position: absolute;
+	left: 0;
+}
+.container > .chat {
+	position: absolute;
+	right: 0;
+	width: 300px;
+	height: 640px;
+
+	background-color: #000;
+	color: #fff;
+}
+
+.chat > .chat-contents {
+	height: 580px;
+	overflow-y: scroll;
+}
+.chat > form {
+	position: absolute;
+	bottom: 0;
+	left: 2px;
+	right: 0;
+}
+.chat input {
+	width: 238px;
+}
+.chat button {
+	width: 48px;
+}
 
 /* via http://www.w3schools.com/howto/howto_css_modals.asp */
 .modal {
@@ -20,24 +56,4 @@ h2 { padding: 0; }
     padding: 20px;
     border: 1px solid #888;
     width: 960px;
-}
-.chat-container
-{
-	float: right;
-	width: 300px;
-	height: 640px;
-}
-.chat
-{	
-	height: 550px;
-	overflow-y: scroll;
-}
-
-.chat-container input {
-	width: 230px;
-}
-
-.container
-{
-	width: 1300px;
 }
