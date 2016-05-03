@@ -54,7 +54,7 @@ class Player{
 	}
 
 	canAfford(type) {
-		if (type != CATAN.Card && this.pieces[type] == 0) {
+		if (this.pieces[type] == 0) {
 			return false;
 		}
 

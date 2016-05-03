@@ -31,8 +31,11 @@ class DevelopmentCard {
 		this.x = x;
 		this.y = y;
 		this.ctx = ctx;
-		this.scale = 0.5;
+		this.scale = 0.33;
+		this.type = type;
 	}
+
+	inCard(x, y) { return x >= this.x && x <= this.x + this.image.width * this.scale && y >= this.y && y <= this.y + this.image.height * this.scale; }
 
 	draw(){
 		this.ctx.drawImage(this.image, this.x, this.y, this.image.width * this.scale, this.image.height * this.scale);
@@ -585,6 +588,24 @@ class Play {
 	endTurn() {
 		this.ws.send(JSON.stringify({ message: "turn" }));
 	}
+	
+	playRoadBuilding(){
+		this.ws.send(JSON.stringify({ message: "develop", card:Catan.ROAD_BUILDING }));
+	}
+	
+	playYearOfPlenty(){
+		// Prompt for resources
+		this.ws.send(JSON.stringify({ message: "develop", card:Catan.YEAR_OF_PLENTY, resources:[Catan.ORE, Catan.ORE] }));
+	}
+	
+	playKnight(){
+		console.log("K");
+		//this.ws.send(JSON.stringify({ message: "develop", card:Catan.KNIGHT}));
+	}
+	
+	playMonopoly(){		
+		this.ws.send(JSON.stringify({ message: "develop", card:Catan.YEAR_OF_PLENTY, terrain:Catan.ORE }));
+	}
 }
 
 Play.resourceNames = {
@@ -653,6 +674,27 @@ canvas.addEventListener("mousemove", function (event) {
 
 canvas.addEventListener("click", function (event) {
 	event.preventDefault();
+	
+	// If there is no pending state, they are free to build a card
+	if (!currentState.action) {
+
+		for (let card in currentState.hand.cards) {
+			if (currentState.hand.cards[card] > 0) {
+				let curCard = currentState.devCardSprites[card];
+				if(curCard.inCard(currentState.mouseX, currentState.mouseY)){
+					switch(curCard.type){
+						case Catan.KNIGHT:					currentState.playKnight(); 				break;
+						case Catan.YEAR_OF_PLENTY: 	currentState.playYearOfPlenty(); 	break;
+						case Catan.MONOPOLY: 				currentState.playMonopoly(); 			break;						
+						case Catan.ROAD_BUILDING: 	currentState.playRoadBuiling(); 	break;
+					}
+				}
+			}
+		}
+			
+		return; 
+	}
+
 	currentState.click();
 });
 
