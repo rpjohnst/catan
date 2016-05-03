@@ -189,6 +189,7 @@ wss.on("connection", function (ws) {
 			this.largestArmyOwner = -1;
 
 			this.pendingCards = [];
+			this.devCardPlayed = false;
 
 			this.freeRoads = 0;
 
@@ -280,6 +281,7 @@ wss.on("connection", function (ws) {
 					players[player].cards[card]++;	
 				}
 				this.pendingCards = [];
+				this.devCardPlayed = false;
 
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
@@ -303,7 +305,7 @@ wss.on("connection", function (ws) {
 				break;
 
 			case "develop":
-				if(players[player].cards[message.card] < 1){
+				if(players[player].cards[message.card] < 1 || this.devCardPlayed){
 					sendError(ws, "develop");
 					return;
 				}
@@ -347,7 +349,8 @@ wss.on("connection", function (ws) {
 					case Catan.ROAD_BUILDING:
 						this.freeRoads = 2;
 						break;
-					default://Unknown development card or Victory Points
+					default: //Unknown development card or Victory Points
+						this.devCardPlayed = false;
 						sendError(ws, "develop");
 						break;	
 				}
