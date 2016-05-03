@@ -22,16 +22,16 @@ const server = "ws://" + window.location.hostname + ":8081";
 class DevelopmentCard {
 	constructor(x, y, type, assets, ctx){
 		switch(type){
-			case Catan.KNIGHT:					this.image = assets.placeholder; break;
-			case Catan.MONOPOLY:				this.image = assets.placeholder; break;
-			case Catan.YEAR_OF_PLENTY:	this.image = assets.placeholder; break;
-			case Catan.VICTORY_POINT: 	this.image = assets.placeholder; break;
-			case Catan.ROAD_BUILDING: 	this.image = assets.placeholder; break;
+			case Catan.KNIGHT:					this.image = assets.soldier; break;
+			case Catan.MONOPOLY:				this.image = assets.monopoly; break;
+			case Catan.YEAR_OF_PLENTY:	this.image = assets.yearofplenty; break;
+			case Catan.VICTORY_POINT: 	this.image = assets.victorypoint; break;
+			case Catan.ROAD_BUILDING: 	this.image = assets.roadbuilding; break;
 		}
 		this.x = x;
 		this.y = y;
 		this.ctx = ctx;
-		this.scale = 0.33;
+		this.scale = 0.8;
 		this.type = type;
 	}
 
@@ -57,7 +57,11 @@ class Lobby {
 			grain_sm: new Image(),
 			wool_sm: new Image(),
 			bricks_sm: new Image(),
-			placeholder: new Image(),
+			yearofplenty: new Image(),
+			victorypoint: new Image(),
+			roadbuilding: new Image(),
+			monopoly: new Image(),
+			soldier: new Image(),
 		};
 		this.assets.hexagon.addEventListener("load", () => {
 			tileColors.forEach((color, i) => {
