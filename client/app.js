@@ -595,7 +595,7 @@ class Play {
 	
 	playYearOfPlenty(){
 		// Prompt for resources
-		this.ws.send(JSON.stringify({ message: "develop", card:Catan.YEAR_OF_PLENTY, resources:[Catan.ORE, Catan.ORE] }));
+		showYopModal();
 	}
 	
 	playKnight(){
@@ -604,7 +604,7 @@ class Play {
 	}
 	
 	playMonopoly(){		
-		this.ws.send(JSON.stringify({ message: "develop", card:Catan.YEAR_OF_PLENTY, terrain:Catan.ORE }));
+		showMonopolyModal();
 	}
 }
 
@@ -820,6 +820,10 @@ function showDiscardModal(count) {
 	form.brick.max = currentState.hand.resources[Catan.BRICK];
 }
 
+function hideDiscardModal() {
+	document.getElementById('discard-modal').style.display = "none";
+}
+
 // chat
 {
 	let form = document.forms.chat;
@@ -831,6 +835,37 @@ function showDiscardModal(count) {
 		form.reset();
 	});
 }
+
+let showYopModal = function () {
+	document.getElementById('yop-modal').style.display = "block";
+}
+
+let hideYopModal = function () {
+	document.getElementById('yop-modal').style.display = "none";
+}
+
+document.getElementById('yop-btn').addEventListener("click", function (event) {
+	event.preventDefault();
+	let choice1 = +document.forms.yop.choice1.value;
+	let choice2 = +document.forms.yop.choice2.value;
+	this.ws.send(JSON.stringify({ message: "develop", card: Catan.YEAR_OF_PLENTY, resources: [choice1, choice2] }));
+	hideYopModal();
+}.bind(lobby));
+
+let showMonopolyModal = function () {
+	document.getElementById('monopoly-modal').style.display = "block";
+}
+
+let hideMonopolyModal = function () {
+	document.getElementById('monopoly-modal').style.display = "none";
+}
+
+document.getElementById('monopoly-btn').addEventListener("click", function (event) {
+	event.preventDefault();
+	let choice = +document.forms.monopoly.choice.value;
+	this.ws.send(JSON.stringify({ message: "develop", card: Catan.MONOPOLY, terrain: choice }));
+	hideMonopolyModal();
+}.bind(lobby));
 
 let ctx = canvas.getContext("2d");
 let lobby = new Lobby(ctx);
