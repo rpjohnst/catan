@@ -3,7 +3,7 @@
 let EventEmitter = require("events").EventEmitter,
 	Express = require("express"),
 	WebSocket = require("ws"),
-	catan = require("./catan"), Catan = catan.Catan, repeat = catan.repeat,
+	catan = require("./catan"), Catan = catan.Catan, repeat = catan.repeat, shuffle = catan.shuffle,
 	Player = require("./player");
 
 let app = Express();
@@ -103,6 +103,7 @@ wss.on("connection", function (ws) {
 			switch (message.message) {
 			default: sendError(ws, "message"); break;
 
+
 			case "build":
 				// player needs to build town, then road next to that town
 				if (
@@ -160,6 +161,7 @@ wss.on("connection", function (ws) {
 	}
 
 	class Play {
+
 		constructor() {
 			// each player gets one resource for each town touching a tile
 			board.forEachTile(3, 3, 2, (x, y) => {
@@ -171,6 +173,24 @@ wss.on("connection", function (ws) {
 					players[building.player].resources[tile] += 1;
 				}
 			});
+
+			this.development = repeat(Catan.KNIGHT, 14);
+			this.development.push.apply(this.development, repeat(Catan.VICTORY_POINT, 5));
+			this.development.push.apply(this.development, repeat(Catan.ROAD_BUILDING, 2));
+			this.development.push.apply(this.development, repeat(Catan.MONOPOLY, 2));
+			this.development.push.apply(this.development, repeat(Catan.YEAR_OF_PLENTY, 2));
+
+			shuffle(this.development);
+
+			this.longestRoad = 4;
+			this.longestRoadOwner = -1;
+
+			this.largestArmy = 2;
+			this.largestArmyOwner = -1;
+
+			this.pendingCards = [];
+
+			this.freeRoads = 0;
 
 			clients.forEach(function (ws, player) {
 				sendResources(ws, players[player]);
@@ -202,9 +222,13 @@ wss.on("connection", function (ws) {
 					break;
 				}
 
-				players[turn].build(message.type);
+				if (message.type == Catan.ROAD && this.freeRoads > 0) {
+					this.freeRoads--;
+				} else {
+					players[turn].build(message.type);
+				}
 
-				if (+message.type == Catan.ROAD) {
+				if (message.type == Catan.ROAD) {
 					this.dfs({ x: +message.x, y: +message.y, d: +message.d }, turn);
 				}
 
@@ -218,8 +242,17 @@ wss.on("connection", function (ws) {
 				});
 				break;
 
+			case "buyDevelop":
+				if(!players[player].canAfford(Catan.CARD) || this.development.length == 0){
+					sendError(ws, "buyDevelop");
+					break;
+				}
+				this.pendingCards.push(this.development.pop());
+				break;
+
 			case "turn":
 				turn = (turn + 1) % clients.length;
+				this.freeRoads = 0;
 
 				let dice = rollDie() + rollDie();
 				for (let [tx, ty] of board.hit[dice]) {
@@ -241,6 +274,9 @@ wss.on("connection", function (ws) {
 						players[building.player].resources[terrain] += amount;
 					}
 				}
+				for(let card of this.pendingCards){
+					players[player].cards[card]++;	
+				}
 
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
@@ -260,6 +296,57 @@ wss.on("connection", function (ws) {
 					}
 
 					currentState = new Robber(this, resourcesToDiscard);
+				}
+				break;
+
+			case "develop":
+				if(players[player].cards[message.card] < 1){
+					sendError(ws, "develop");
+					return;
+				}
+
+				this.devCardPlayed = true;
+				//Only one card may be played per turn.
+				switch(message.card){
+					case Catan.KNIGHT:
+						currentState = new Robber(this, repeat(0,4));
+						players[player].knights++;
+						break;
+
+					case Catan.YEAR_OF_PLENTY:
+						//Give the resources the player has chose to the player
+						for(let terrain of message.resources){
+							if(terrain > 5 || terrain < 1) {
+								sendError(ws, "yopResourceType")
+								continue;
+							}
+							players[player].resources[terrain] += 1;
+						}
+						//Remove the card from the hand. 
+						players[player].cards[Catan.YEAR_OF_PLENTY]--; 
+
+						//Inform the player
+						sendResources(ws, players[player]);						
+						break;
+					case Catan.MONOPOLY:
+						//For every other-player, remove their selected resources and give them to the card-player
+						for(let player_iter = 0; player_iter < 4; player_iter++){
+							if(player_iter != player){
+								let resource_count = players[player_iter].resources[message.terrain];
+								players[player_iter].resources[message.terrain] -= resource_count;
+								players[player].resources[message.terrain] += resource_count;
+							}
+						}
+						clients.forEach(function (ws, player) {
+							sendResources(ws, players[player]);
+						});						
+						break;
+					case Catan.ROAD_BUILDING:
+						this.freeRoads = 2;
+						break;
+					default://Unknown development card or Victory Points
+						sendError(ws, "develop");
+						break;	
 				}
 				break;
 			}

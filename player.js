@@ -33,6 +33,8 @@ class Player{
 			[Catan.VICTORY_POINT]: 0,
 			[Catan.ROAD_BUILDING]: 0,
 		};
+
+		this.knights = 0;
 	}
 
 	hasResources(resourceSet) {
@@ -52,7 +54,7 @@ class Player{
 	}
 
 	canAfford(type) {
-		if (this.pieces[type] == 0) {
+		if (type != CATAN.Card && this.pieces[type] == 0) {
 			return false;
 		}
 

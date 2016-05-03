@@ -241,6 +241,7 @@ class Catan {
 Catan.ROAD = 0;
 Catan.TOWN = 1;
 Catan.CITY = 2;
+Catan.CARD = 3;
 
 // resource and tile types
 Catan.NONE = 0;
@@ -295,3 +296,4 @@ function rotate(array, count) {
 
 module.exports.Catan = Catan;
 module.exports.repeat = repeat;
+module.exports.shuffle = shuffle;
