@@ -3,7 +3,7 @@
 let Catan = require("../catan").Catan,
 	Player = require("../player"),
 	Hex = require("./hex"),
-	ResourceSprite;
+	ResourceSprite, DevelopmentCard;
 
 let currentState;
 let run = function (state) {
@@ -18,31 +18,6 @@ const tileColors = ["#f4a460", "#666666", "#003200", "#006400", "#ffff00", "#660
 const playerColors = ["#ff0000", "#00bcff", "#ffbc00", "#008000"];
 
 const server = "ws://" + window.location.hostname + ":8081";
-
-class DevelopmentCard {
-	constructor(x, y, type, assets, ctx){
-		switch(type){
-			case Catan.KNIGHT:					this.image = assets.soldier; break;
-			case Catan.MONOPOLY:				this.image = assets.monopoly; break;
-			case Catan.YEAR_OF_PLENTY:	this.image = assets.yearofplenty; break;
-			case Catan.VICTORY_POINT: 	this.image = assets.victorypoint; break;
-			case Catan.ROAD_BUILDING: 	this.image = assets.roadbuilding; break;
-		}
-		this.x = x;
-		this.y = y;
-		this.ctx = ctx;
-		this.scale = 0.8;
-		this.type = type;
-	}
-
-	inCard(x, y) { return x >= this.x && x <= this.x + this.image.width * this.scale && y >= this.y && y <= this.y + this.image.height * this.scale; }
-
-	draw(){
-		this.ctx.drawImage(this.image, this.x, this.y, this.image.width * this.scale, this.image.height * this.scale);
-		//ctx.drawImage(this.image, this.x - this.image.width * this.scale / 2, this.y - this.image.height * this.scale / 2, 
-									//this.image.width * this.scale, this.image.height * this.scale);
-	}
-}
 
 class Lobby {
 	constructor(ctx) {
@@ -168,13 +143,16 @@ class Play {
 		this.vertex = [0, 0, 0];
 		this.edge = [0, 0, 0];
 
-		// Create dev card sprite array
-		this.devCardSprites = [];
+		this.cards = [];
+		let cardWidth = this.assets.soldier.width * 0.8;
+		let cardHeight = this.assets.soldier.height * 0.8;
 		for (let card in this.hand.cards) {
-			card = +card;
-			let cardSprite = new DevelopmentCard(0, 300, card, this.assets, ctx);
-			cardSprite.x = canvas.width / 2 + card * (cardSprite.image.width * cardSprite.scale + 10);
-			this.devCardSprites[card] = cardSprite;
+			let odd = card % 2 == 1;
+			let sprite = new DevelopmentCard([
+				canvas.width / 2 + 40 + card * (cardWidth + 10) / 2,
+				canvas.height / 2 + 30 + odd * (cardHeight + 30)
+			], [cardWidth, cardHeight]);
+			this.cards[+card] = sprite;
 		}
 
 		this.ws.onmessage = (event) => {
@@ -277,6 +255,14 @@ class Play {
 			case "error":
 				if (message.error == "robber" && this.action == "steal") {
 					this.action = "moveRobber";
+				}
+
+				if (
+					message.error == "develop" &&
+					(this.action == "moveRobber" || this.action == "steal")
+				) {
+					delete this.robber;
+					delete this.action;
 				}
 				break;
 			}
@@ -387,10 +373,6 @@ class Play {
 			let [px, py] = Hex.vertexToPixels(x, y, d);
 			ctx.drawImage(image, px - image.width / 2, py - image.height / 2);
 		}
-		// Store vertex and edge coordinates in current state (should decouple from rendering?)
-		currentState.lvx = mvx; currentState.lvy = mvy; currentState.lvd = mvd;
-		currentState.lex = mex; currentState.ley = mey; currentState.led = med;
-		currentState.lmx = mx; currentState.lmy = my;
 
 		// draw numbers
 		this.board.hit.forEach((hit, i) => {
@@ -474,18 +456,27 @@ class Play {
 				ctx.fillText(this.hand.resources[resource], width / 2 + 40 + 140, y);
 			}
 
-			let oldTextAlign = ctx.textAlign;
 			ctx.textAlign = "center";
 			for (let card in this.hand.cards) {
-				if (this.hand.cards[card] > 0) {
-					let curCard = this.devCardSprites[card];
-					curCard.draw();
-					let x = curCard.x + curCard.image.width * curCard.scale / 2;
-					let y = curCard.y + curCard.image.height * curCard.scale + 10;
-					ctx.fillText("x" + this.hand.cards[card], x, y);
+				card = +card;
+
+				let image;
+				switch (card) {
+				case Catan.KNIGHT: image = this.assets.soldier; break;
+				case Catan.MONOPOLY: image = this.assets.monopoly; break;
+				case Catan.YEAR_OF_PLENTY: image = this.assets.yearofplenty; break;
+				case Catan.VICTORY_POINT: image = this.assets.victorypoint; break;
+				case Catan.ROAD_BUILDING: image = this.assets.roadbuilding; break;
 				}
+
+				let [x, y] = this.cards[card].pos;
+				let scale = this.cards[card].scale;
+				ctx.drawImage(image, x, y, image.width * scale, image.height * scale);
+
+				let [tx, ty] = [x + image.width * 0.8 / 2, y + image.height * scale + 10];
+				ctx.fillText("x" + this.hand.cards[card], tx, ty);
 			}
-			ctx.textAlign = oldTextAlign;
+			ctx.textAlign = "left";
 
 			if (this.tradingOngoing) {
 				ctx.fillText("Offers:", width / 2 + 40, 100);
@@ -592,22 +583,21 @@ class Play {
 	endTurn() {
 		this.ws.send(JSON.stringify({ message: "turn" }));
 	}
-	
-	playRoadBuilding(){
-		this.ws.send(JSON.stringify({ message: "develop", card:Catan.ROAD_BUILDING }));
+
+	playRoadBuilding() {
+		this.ws.send(JSON.stringify({ message: "develop", card: Catan.ROAD_BUILDING }));
 	}
-	
-	playYearOfPlenty(){
-		// Prompt for resources
+
+	playYearOfPlenty() {
 		showYopModal();
 	}
-	
-	playKnight(){
-		console.log("K");
-		//this.ws.send(JSON.stringify({ message: "develop", card:Catan.KNIGHT}));
+
+	playKnight() {
+		this.ws.send(JSON.stringify({ message: "develop", card: Catan.KNIGHT }));
+		this.action = "moveRobber";
 	}
-	
-	playMonopoly(){		
+
+	playMonopoly() {
 		showMonopolyModal();
 	}
 }
@@ -644,11 +634,11 @@ ResourceSprite = class {
 	}
 
 	move() {
-		let t = this.count / 120;
+		let t = this.count / 90;
 		this.count += 1;
 
-		this.scale = lerp(0.5, 1, 3 * t);
-		this.pos = lerp2(this.start, this.end, 1.2 * t - 0.2);
+		this.scale = lerp(0.5, 1, 4 * t);
+		this.pos = lerp2(this.start, this.end, 1.5 * t - 0.5);
 
 		return t > 1;
 
@@ -659,6 +649,21 @@ ResourceSprite = class {
 		function lerp2([ax, ay], [bx, by], t) { return [lerp(ax, bx, t), lerp(ay, by, t)]; }
 	}
 };
+
+DevelopmentCard = class {
+	constructor(position, size) {
+		this.pos = position;
+		this.size = size;
+		this.scale = 0.8;
+	}
+
+	inCard(x, y) {
+		return (
+			this.pos[0] <= x && x < this.pos[0] + this.size[0] * this.scale &&
+			this.pos[1] <= y && y < this.pos[1] + this.size[1] * this.scale
+		);
+	}
+}
 
 let canvas = document.getElementById("canvas");
 canvas.width = Hex.width;
@@ -679,23 +684,25 @@ canvas.addEventListener("mousemove", function (event) {
 canvas.addEventListener("click", function (event) {
 	event.preventDefault();
 	
-	// If there is no pending state, they are free to build a card
 	if (!currentState.action) {
+		for (let cardType in currentState.hand.cards) {
+			cardType = +cardType;
 
-		for (let card in currentState.hand.cards) {
-			if (currentState.hand.cards[card] > 0) {
-				let curCard = currentState.devCardSprites[card];
-				if(curCard.inCard(currentState.mouseX, currentState.mouseY)){
-					switch(curCard.type){
-						case Catan.KNIGHT:					currentState.playKnight(); 				break;
-						case Catan.YEAR_OF_PLENTY: 	currentState.playYearOfPlenty(); 	break;
-						case Catan.MONOPOLY: 				currentState.playMonopoly(); 			break;						
-						case Catan.ROAD_BUILDING: 	currentState.playRoadBuilding(); 	break;
-					}
+			let cardCount = currentState.hand.cards[cardType];
+			if (cardCount == 0) { continue; }
+
+			let card = currentState.cards[cardType];
+			let [tx, ty] = currentState.tile;
+			if (card.inCard(currentState.mouseX, currentState.mouseY)) {
+				switch (cardType) {
+					case Catan.KNIGHT: currentState.playKnight(); break;
+					case Catan.YEAR_OF_PLENTY: currentState.playYearOfPlenty(); break;
+					case Catan.MONOPOLY: currentState.playMonopoly(); break;
+					case Catan.ROAD_BUILDING: currentState.playRoadBuilding(); break;
 				}
 			}
 		}
-			
+
 		return; 
 	}
 
@@ -852,9 +859,9 @@ document.getElementById('yop-btn').addEventListener("click", function (event) {
 	event.preventDefault();
 	let choice1 = +document.forms.yop.choice1.value;
 	let choice2 = +document.forms.yop.choice2.value;
-	this.ws.send(JSON.stringify({ message: "develop", card: Catan.YEAR_OF_PLENTY, resources: [choice1, choice2] }));
+	currentState.ws.send(JSON.stringify({ message: "develop", card: Catan.YEAR_OF_PLENTY, resources: [choice1, choice2] }));
 	hideYopModal();
-}.bind(lobby));
+});
 
 let showMonopolyModal = function () {
 	document.getElementById('monopoly-modal').style.display = "block";
@@ -867,9 +874,9 @@ let hideMonopolyModal = function () {
 document.getElementById('monopoly-btn').addEventListener("click", function (event) {
 	event.preventDefault();
 	let choice = +document.forms.monopoly.choice.value;
-	this.ws.send(JSON.stringify({ message: "develop", card: Catan.MONOPOLY, terrain: choice }));
+	currentState.ws.send(JSON.stringify({ message: "develop", card: Catan.MONOPOLY, terrain: choice }));
 	hideMonopolyModal();
-}.bind(lobby));
+});
 
 let ctx = canvas.getContext("2d");
 let lobby = new Lobby(ctx);

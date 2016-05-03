@@ -62,7 +62,7 @@ class Player{
 	}
 
 	build(type) {
-		this.pieces[type] -= 1;
+		if (type != Catan.CARD) { this.pieces[type] -= 1; }
 		this.spendResources(COST[type]);
 	}
 };
