@@ -366,7 +366,9 @@ wss.on("connection", function (ws) {
 				turn = (turn + 1) % clients.length;
 				this.freeRoads = 0;
 
-				let dice = rollDie() + rollDie();
+				let die1 = rollDie();
+				let die2 = rollDie();
+				let dice = die1 + die2;
 				for (let [tx, ty] of board.hit[dice]) {
 					let terrain = board.tiles[ty][tx];
 					for (let [vx, vy, vd] of board.cornerVertices(tx, ty)) {
@@ -395,7 +397,8 @@ wss.on("connection", function (ws) {
 
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
-						message: "turn", player: turn, dice: dice, start: start
+						message: "turn", player: turn, dice: dice, start: start, 
+						die1: die1, die2: die2
 					}));
 
 					sendTurn(ws, player);

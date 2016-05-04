@@ -1,0 +1,9 @@
+To add music:
+
+Place audio files in this directory
+
+Uncomment the block comment on line 952
+
+Change the audio element on line 114 in index.html to match one of the audio files
+
+Add the audio file names to the musicList variable

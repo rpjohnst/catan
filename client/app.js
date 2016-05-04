@@ -3,7 +3,7 @@
 let Catan = require("../catan").Catan,
 	Player = require("../player"),
 	Hex = require("./hex"),
-	ResourceSprite, DevelopmentCard;
+	ResourceSprite, DevelopmentCard, DiceSprite;
 
 let currentState;
 let run = function (state) {
@@ -37,6 +37,9 @@ class Lobby {
 			roadbuilding: new Image(),
 			monopoly: new Image(),
 			soldier: new Image(),
+			dice: new Image(),
+			sound_off: new Image(),
+			sound_on: new Image(),
 		};
 		this.assets.hexagon.addEventListener("load", () => {
 			tileColors.forEach((color, i) => {
@@ -169,7 +172,10 @@ class Play {
 
 			case "turn":
 				this.turn = message.player;
-				this.dice = message.dice;				
+				this.dice = message.dice;
+				die1.start(message.die1);
+				die2.start(message.die2);
+				
 				if (message.start) {
 					this.pregame = false;
 					this.lastTown = [];
@@ -523,7 +529,13 @@ class Play {
 					offerText.forEach((text, row) => ctx.fillText(text, tx, ty + 16 * (row + 1)));
 				}
 			}
-		}
+		}			
+	
+		// Draw dice
+		die1.advance();
+		ctx.drawImage(this.assets.dice, die1.index*die1.size + 1, 1, die1.size, die1.size, die1.offset[0], die1.offset[1], die1.size, die1.size);
+		die2.advance();
+		ctx.drawImage(this.assets.dice, die2.index*die2.size + 1, 1, die2.size, die2.size, die2.offset[0], die2.offset[1], die2.size, die2.size);
 	}
 
 	click() {
@@ -676,6 +688,46 @@ DevelopmentCard = class {
 			this.pos[0] <= x && x < this.pos[0] + this.size[0] * this.scale &&
 			this.pos[1] <= y && y < this.pos[1] + this.size[1] * this.scale
 		);
+	}
+}
+
+DiceSprite = class {
+	
+	constructor(size, offset){
+		
+		// Number of times advance has been called since last call to start
+		this.count = 0;
+		
+		// The index that will be drawn currently
+		this.index = 0;
+		
+		this.size = size;
+		this.offset = offset;
+		
+		// The index of the number that should be displayed when done rolling
+		this.target = 0;
+	}
+	
+	/* Sets a target for this die to display when it is done rolling */
+	start(target){
+		this.count = 0;
+		this.target = target;
+	}
+	
+	/*
+			Adjusts the image drawn by this sprite
+			Every 4 calls displays a random number. After 48 calls, the target number is displayed.
+	*/
+	advance(){
+		if(this.count < 48){
+			this.count++;
+			if(this.count % 4 == 0){
+				this.index = Math.floor(Math.random()*6);
+			}
+		}
+		else {
+			this.index = this.target;
+		}
 	}
 }
 
@@ -895,3 +947,26 @@ document.getElementById('monopoly-btn').addEventListener("click", function (even
 let ctx = canvas.getContext("2d");
 let lobby = new Lobby(ctx);
 run(lobby);
+
+// Play random music track
+/*
+let musicList = ["JasonShawSailorsLament.mp3"];	
+let audioEl = document.getElementById("audio");
+audioEl.volume = 0;
+audioEl.play();
+audioEl.onended = function(){		
+	audioEl.pause();
+	audioEl.currentTime = 0;
+	audioEl.src = "assets/music/" + musicList[Math.floor((Math.random() * musicList.length))];		
+	audioEl.play();
+}
+
+document.getElementById("toggleAudio").addEventListener("click", function (event) {
+	event.preventDefault();
+	audioEl.volume = (audioEl.volume < 1)? 1: 0;
+});
+*/
+
+// Global dice sprites display latest roll
+let die1 = new DiceSprite(100, [0, 550]);
+let die2 = new DiceSprite(100, [105, 550]);
