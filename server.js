@@ -253,6 +253,10 @@ wss.on("connection", function (ws) {
 						player: turn
 					}));
 				});
+				
+				if (this.checkForVictory(player)) {
+					transitionToVictory(player);
+				}
 				break;
 
 			case "buyDevelop":
@@ -269,6 +273,10 @@ wss.on("connection", function (ws) {
 					message: "chat", sender: -1,
 					text: "You will receive your development card at the end of your turn",
 				}));
+				
+				if (this.checkForVictory(player)) {
+					transitionToVictory(player);
+				}
 				break;
 
 			case "develop":
@@ -342,6 +350,10 @@ wss.on("connection", function (ws) {
 					console.log("after " + players[turn].cards[message.card]);
 					sendResources(clients[turn], players[turn]);
 				}
+				
+				if (this.checkForVictory(player)) {
+					transitionToVictory(player);
+				}
 				break;
 
 			case "turn":
@@ -402,6 +414,56 @@ wss.on("connection", function (ws) {
 				}
 				break;
 			}
+		}
+		
+		checkForVictory(playerID) {
+			let player = players[playerID];
+			// Cards in hand
+			let totalPoints = player.cards[Catan.VICTORY_POINT];
+			// Pending cards
+			if (playerID == turn) {				
+				for(let card of this.pendingCards) {
+					if (card == Catan.VICTORY_POINT) {
+						totalPoints += 1;
+					}
+				}
+			}
+			// Towns and Cities
+			board.forEachTile(cx, cy, N, (x, y) => {
+				for (let d = 0; d < 2; d++) {
+					let building = board.buildings[y][x][d];
+					if (!building) { continue; }
+					else if (building.player == playerID) {
+						if (building.type == Catan.TOWN) {
+							totalPoints += 1;
+						} else if (building.type == Catan.CITY) {
+							totalPoints += 2;
+						}
+					}
+					
+				}
+			});
+			// Longest Road
+			if (board.maxRoadPlayer == playerID) {
+				totalPoints += 2;
+			}
+			// Largest Army
+			if (board.maxSoldiersPlayer == playerID) {
+				totalPoints += 2;
+			}
+			
+			return totalPoints >= 10;
+		}
+		
+		transitionToVictory(winningPlayer) {
+			clients.forEach(function (ws, player) {
+				ws.send(JSON.stringify({
+					message: "chat",
+					text: "Player " + winningPlayer + " has won the game!",
+					sender: -1
+				}));
+			});
+			currentState = new Victory();
 		}
 
 		// road contains x,y,d coordinates
@@ -650,6 +712,13 @@ wss.on("connection", function (ws) {
 				break;
 			}
 
+			return;
+		}
+	}
+	
+	class Victory {
+		onmessage(ws, player, message) {
+			// Game is over - do nothing
 			return;
 		}
 	}
