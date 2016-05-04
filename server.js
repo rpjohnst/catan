@@ -292,6 +292,12 @@ wss.on("connection", function (ws) {
 					this.devCardPlayed = true;
 					currentState = new Robber(this, repeat(0,4));
 					players[player].knights++;
+					
+					if (players[player].knights > board.maxSoldiers) {
+						board.maxSoldiers = players[player].knights;
+						board.maxSoldiersPlayer = player;
+					}
+					
 					break;
 
 				case Catan.YEAR_OF_PLENTY:
@@ -451,7 +457,15 @@ wss.on("connection", function (ws) {
 			if (board.maxSoldiersPlayer == playerID) {
 				totalPoints += 2;
 			}
-			
+			clients.forEach(function (ws, player) {
+				ws.send(JSON.stringify({
+					message: "stats",
+					longestRoad: board.maxRoad,
+					longestRoadPlayer: board.maxRoadPlayer,
+					largestArmy: board.maxSoldiers,
+					largestArmyPlayer: board.maxSoldiersPlayer
+				}));
+			});
 			return totalPoints >= 10;
 		}
 		

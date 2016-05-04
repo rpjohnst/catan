@@ -154,6 +154,11 @@ class Play {
 			], [cardWidth, cardHeight]);
 			this.cards[+card] = sprite;
 		}
+		
+		this.longestRoad = null;
+		this.longestRoadPlayer = null;
+		this.largestArmy = null;
+		this.largestArmyPlayer = null;
 
 		this.ws.onmessage = (event) => {
 			console.log(event.data);
@@ -274,6 +279,13 @@ class Play {
 					delete this.robber;
 					delete this.action;
 				}
+				break;
+			
+			case "stats":
+				this.longestRoad = message.longestRoad;
+				this.longestRoadPlayer = message.longestRoadPlayer;
+				this.largestArmy = message.largestArmy;
+				this.largestArmyPlayer = message.largestArmyPlayer;
 				break;
 			}
 		};
