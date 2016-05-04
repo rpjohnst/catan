@@ -57,3 +57,5 @@ h2 { margin: 0; }
     border: 1px solid #888;
     width: 960px;
 }
+
+#toggleAudio { float: right; }

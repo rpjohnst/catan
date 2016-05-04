@@ -180,7 +180,9 @@ class Catan {
 		let targets = [];
 		for (let [vx, vy, vd] of this.cornerVertices(x, y)) {
 			let building = this.buildings[vy][vx][vd];
-			if (!building || building.player == exclude) { continue; }
+			if (!building || building.player == exclude || targets.indexOf(building.player) > -1) {
+				continue;
+			}
 
 			targets.push(building.player);
 		}

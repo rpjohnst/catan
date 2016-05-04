@@ -173,8 +173,10 @@ class Play {
 			case "turn":
 				this.turn = message.player;
 				this.dice = message.dice;
-				die1.start(message.die1);
-				die2.start(message.die2);
+				if (message.die1 && message.die2) {
+					die1.start(message.die1);
+					die2.start(message.die2);
+				}
 				
 				if (message.start) {
 					this.pregame = false;
@@ -310,9 +312,11 @@ class Play {
 		ctx.fillText("You are player " + this.player + " and it is player " + this.turn + "'s turn", 0, 0);
 
 		let [mx, my] = this.tile, [mvx, mvy, mvd] = this.vertex, [mex, mey, med] = this.edge;
-		ctx.fillText("Mouse cursor on tile (" + mx + "," + my + ")", 0, 16);
-		ctx.fillText("Mouse cursor near vertex (" + mvx + "," + mvy + "," + ["L", "R"][mvd] + ")", 0, 32);
-		ctx.fillText("Mouse cursor near edge (" + mex + "," + mey + "," + ["W", "N", "E"][med] + ")", 0, 48);
+		if (false) {
+			ctx.fillText("Mouse cursor on tile (" + mx + "," + my + ")", 0, 16);
+			ctx.fillText("Mouse cursor near vertex (" + mvx + "," + mvy + "," + ["L", "R"][mvd] + ")", 0, 32);
+			ctx.fillText("Mouse cursor near edge (" + mex + "," + mey + "," + ["W", "N", "E"][med] + ")", 0, 48);
+		}
 
 		let cx = 3, cy = 3, N = 3;
 
@@ -533,9 +537,9 @@ class Play {
 	
 		// Draw dice
 		die1.advance();
-		ctx.drawImage(this.assets.dice, die1.index*die1.size + 1, 1, die1.size, die1.size, die1.offset[0], die1.offset[1], die1.size, die1.size);
+		ctx.drawImage(this.assets.dice, (die1.index - 1)*die1.size + 1, 1, die1.size, die1.size, die1.offset[0], die1.offset[1], die1.size * 0.8, die1.size * 0.8);
 		die2.advance();
-		ctx.drawImage(this.assets.dice, die2.index*die2.size + 1, 1, die2.size, die2.size, die2.offset[0], die2.offset[1], die2.size, die2.size);
+		ctx.drawImage(this.assets.dice, (die2.index - 1)*die2.size + 1, 1, die2.size, die2.size, die2.offset[0], die2.offset[1], die2.size * 0.8, die2.size * 0.8);
 	}
 
 	click() {
@@ -696,7 +700,7 @@ DiceSprite = class {
 	constructor(size, offset){
 		
 		// Number of times advance has been called since last call to start
-		this.count = 0;
+		this.count = 48;
 		
 		// The index that will be drawn currently
 		this.index = 0;
@@ -786,8 +790,9 @@ canvas.addEventListener("click", function (event) {
 			event.preventDefault();
 			if (modalActions.indexOf(currentState.action) > -1) { return; }
 
+			restoreDefaultButtons();
+
 			if (currentState.action == id) {
-				restoreDefaultButtons();
 				delete currentState.action;
 				return;
 			}
@@ -968,5 +973,5 @@ document.getElementById("toggleAudio").addEventListener("click", function (event
 */
 
 // Global dice sprites display latest roll
-let die1 = new DiceSprite(100, [0, 550]);
-let die2 = new DiceSprite(100, [105, 550]);
+let die1 = new DiceSprite(100, [10, 550]);
+let die2 = new DiceSprite(100, [87, 550]);
