@@ -278,7 +278,7 @@ wss.on("connection", function (ws) {
 				});
 				
 				if (this.checkForVictory(player)) {
-					transitionToVictory(player);
+					this.transitionToVictory(player);
 				}
 				break;
 
@@ -298,7 +298,7 @@ wss.on("connection", function (ws) {
 				}));
 				
 				if (this.checkForVictory(player)) {
-					transitionToVictory(player);
+					this.transitionToVictory(player);
 				}
 				break;
 
@@ -381,7 +381,7 @@ wss.on("connection", function (ws) {
 				}
 				
 				if (this.checkForVictory(player)) {
-					transitionToVictory(player);
+					this.transitionToVictory(player);
 				}
 				break;
 
@@ -426,7 +426,7 @@ wss.on("connection", function (ws) {
 
 					sendTurn(ws, player);
 					ws.send(JSON.stringify({
-						message: "chat", sender: -1, text: "Rolled a " + dice,
+						message: "chat", sender: -1, text: "Rolled " + dice,
 					}));
 
 					sendResources(ws, players[player]);
@@ -461,7 +461,7 @@ wss.on("connection", function (ws) {
 				}
 			}
 			// Towns and Cities
-			board.forEachTile(cx, cy, N, (x, y) => {
+			board.forEachTile(3, 3, 3, (x, y) => {
 				for (let d = 0; d < 2; d++) {
 					let building = board.buildings[y][x][d];
 					if (!building) { continue; }

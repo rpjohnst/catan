@@ -59,3 +59,7 @@ h2 { margin: 0; }
 }
 
 #toggleAudio { float: right; }
+#costs-table {
+	position: absolute;
+	top: 740px;
+}
