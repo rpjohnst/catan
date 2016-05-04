@@ -252,6 +252,14 @@ Catan.GRAIN = 4;
 Catan.BRICK = 5;
 Catan.OCEAN = 6;
 
+Catan.resourceNames = {
+	[Catan.ORE]: "ore",
+	[Catan.WOOD]: "wood",
+	[Catan.WOOL]: "wool",
+	[Catan.GRAIN]: "grain",
+	[Catan.BRICK]: "brick",
+};
+
 // development cards
 Catan.KNIGHT = 0;
 Catan.YEAR_OF_PLENTY = 1;

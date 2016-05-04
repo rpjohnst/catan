@@ -209,16 +209,26 @@ class Play {
 				break;
 
 			case "chat":
-				let name = document.createTextNode("Player " + message.sender + ": ");
-				let content = document.createTextNode(message.text);
+				let nameSpan, contentSpan;
+				if (message.sender > -1) {
+					let name = document.createTextNode("Player " + message.sender + ": ");
+					nameSpan = document.createElement("span");
+					nameSpan.style.color = playerColors[message.sender];
+					nameSpan.appendChild(name);
 
-				let nameSpan = document.createElement("span");
-				nameSpan.style.color = playerColors[message.sender];
-				nameSpan.appendChild(name);
+					contentSpan = document.createTextNode(message.text);
+				} else {
+					nameSpan = document.createTextNode("");
+
+					let content = document.createTextNode(message.text);
+					contentSpan = document.createElement("span");
+					contentSpan.style.fontWeight = "bold";
+					contentSpan.appendChild(content);
+				}
 
 				let msgP = document.createElement("p");
 				msgP.appendChild(nameSpan);
-				msgP.appendChild(content);
+				msgP.appendChild(contentSpan);
 
 				let chatBox = document.getElementById("chat-contents");
 				chatBox.appendChild(msgP);
@@ -452,7 +462,7 @@ class Play {
 
 			for (let resource in this.hand.resources) {
 				let y = -16 + resource * 16;
-				ctx.fillText(Play.resourceNames[resource], width / 2 + 40 + 90, y);
+				ctx.fillText(Catan.resourceNames[resource], width / 2 + 40 + 90, y);
 				ctx.fillText(this.hand.resources[resource], width / 2 + 40 + 140, y);
 			}
 
@@ -496,7 +506,7 @@ class Play {
 					let offer = this.tradingOffers[i];
 					for (let kind in offer) {
 						if (!offer[kind]) { continue; }
-						offerText.push(offer[kind] + " " + Play.resourceNames[kind]);
+						offerText.push(offer[kind] + " " + Catan.resourceNames[kind]);
 					}
 					offerText.forEach((text, row) => ctx.fillText(text, tx, ty + 16 * (row + 1)));
 				}
@@ -601,14 +611,6 @@ class Play {
 		showMonopolyModal();
 	}
 }
-
-Play.resourceNames = {
-	[Catan.ORE]: "ore",
-	[Catan.WOOD]: "wood",
-	[Catan.WOOL]: "wool",
-	[Catan.GRAIN]: "grain",
-	[Catan.BRICK]: "brick",
-};
 
 Play.pieceNames = {
 	[Catan.ROAD]: "roads",

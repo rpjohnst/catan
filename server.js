@@ -43,6 +43,9 @@ wss.on("connection", function (ws) {
 		clients.forEach(function (ws, player) {
 			if (player == skip) { return; }
 
+			ws.send(JSON.stringify({
+				message: "chat", sender: -1, text: "Player " + skip + " left"
+			}));
 			ws.send(JSON.stringify({ message: "end" }));
 			ws.close();
 		});
@@ -59,8 +62,8 @@ wss.on("connection", function (ws) {
 				let sendingPlayer = player;
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({
-						message: "chat",
-						text: message.text.substring(0,1000), sender: sendingPlayer
+						message: "chat", sender: sendingPlayer,
+						text: message.text.substring(0, 1000)
 					}));
 				});
 				return;
@@ -91,6 +94,12 @@ wss.on("connection", function (ws) {
 			clients.forEach(function (ws, player) {
 				ws.send(JSON.stringify({ message: "start", board: board, player: player }));
 				ws.send(JSON.stringify({ message: "turn", player: turn }));
+				ws.send(JSON.stringify({
+					message: "chat", sender: -1,
+					text: "Initial setup: each player places one town and one adjacent road, " +
+						"then again in reverse order."
+				}));
+				sendTurn(ws, player);
 			});
 		}
 
@@ -102,7 +111,6 @@ wss.on("connection", function (ws) {
 
 			switch (message.message) {
 			default: sendError(ws, "message"); break;
-
 
 			case "build":
 				// player needs to build town, then road next to that town
@@ -154,6 +162,7 @@ wss.on("connection", function (ws) {
 
 				clients.forEach(function (ws, player) {
 					ws.send(JSON.stringify({ message: "turn", player: turn }));
+					sendTurn(ws, player);
 				});
 				break;
 			}
@@ -251,9 +260,15 @@ wss.on("connection", function (ws) {
 					sendError(ws, "buyDevelop");
 					break;
 				}
+
 				this.pendingCards.push(this.development.pop());
 				players[player].build(Catan.CARD);
+
 				sendResources(clients[turn], players[turn]);
+				ws.send(JSON.stringify({
+					message: "chat", sender: -1,
+					text: "You will receive your development card at the end of your turn",
+				}));
 				break;
 
 			case "develop":
@@ -300,6 +315,11 @@ wss.on("connection", function (ws) {
 
 					clients.forEach(function (ws, player) {
 						sendResources(ws, players[player]);
+						ws.send(JSON.stringify({
+							message: "chat", sender: -1,
+							text: "Player " + turn + " stole all your " +
+								Catan.resourceNames[message.terrain],
+						}));
 					});
 					break;
 
@@ -308,6 +328,11 @@ wss.on("connection", function (ws) {
 				case Catan.ROAD_BUILDING:
 					this.devCardPlayed = true;
 					this.freeRoads = 2;
+
+					ws.send(JSON.stringify({
+						message: "chat", sender: -1,
+						text: "You may build two free roads this turn",
+					}));
 					break;
 				}
 
@@ -354,6 +379,12 @@ wss.on("connection", function (ws) {
 					ws.send(JSON.stringify({
 						message: "turn", player: turn, dice: dice, start: start
 					}));
+
+					sendTurn(ws, player);
+					ws.send(JSON.stringify({
+						message: "chat", sender: -1, text: "Rolled a " + dice,
+					}));
+
 					sendResources(ws, players[player]);
 				});
 
@@ -538,6 +569,10 @@ wss.on("connection", function (ws) {
 		constructor(play, resourcesToDiscard) {
 			this.play = play;
 			this.resourcesToDiscard = resourcesToDiscard;
+
+			clients[turn].send(JSON.stringify({
+				message: "chat", sender: -1, text: "Move the robber"
+			}));
 		}
 
 		onmessage(ws, player, message) {
@@ -608,6 +643,10 @@ wss.on("connection", function (ws) {
 
 				sendResources(ws, players[player]);
 				sendResources(clients[message.player], players[message.player]);
+				clients[message.player].send(JSON.stringify({
+					message: "send", sender: -1,
+					text: "Player " + player + " stole your " + Catan.resourceNames[resource],
+				}));
 				break;
 			}
 
@@ -636,6 +675,7 @@ wss.on("connection", function (ws) {
 		clients.forEach(function (ws, player) {
 			ws.send(JSON.stringify({ message: "start", board: board, player: player }));
 			ws.send(JSON.stringify({ message: "turn", player: turn }));
+			sendTurn(ws, player);
 		});
 
 		let ws = clients[turn];
@@ -645,6 +685,11 @@ wss.on("connection", function (ws) {
 		currentState.onmessage(ws, turn, { message: "turn" }, true);
 	} else {
 		currentState = new Start();
+	}
+
+	function sendTurn(ws, player) {
+		let playerName = player == turn ? "Your" : "Player " + turn + "'s";
+		ws.send(JSON.stringify({ message: "chat", sender: -1, text: playerName + " turn" }));
 	}
 
 	function sendResources(ws, player) {
